@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <?!= include_('backend/ui/staff-style') ?>
+  </head>
+  <body>
+    <header class="bar">
+      <h1>Food Bank URHP <span class="muted">staff</span></h1>
+      <span id="who" class="muted"></span>
+    </header>
+    <nav id="tabs" aria-label="Sections"></nav>
+    <main id="view" tabindex="-1"><p class="muted">Loading…</p></main>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script>
+      const BOOT = <?!= boot ?>;
+    </script>
+    <?!= include_('backend/ui/staff-script') ?>
+  </body>
+</html>

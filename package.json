@@ -1,0 +1,12 @@
+{
+  "name": "food-bank-urhp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Inventory and self-service checkout for the UiTM food bank.",
+  "scripts": {
+    "test": "node --test",
+    "serve": "node tools/serve.js",
+    "push": "clasp push --force",
+    "deploy": "node tools/deploy.js"
+  }
+}

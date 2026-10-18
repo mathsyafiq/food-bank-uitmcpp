@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+
+# Never commit data (CLAUDE.md section 2): rosters, exports, real student IDs.
+*.csv
+*.xlsx
+data/
+exports/
+
+# Local Google project IDs (script and spreadsheet).
+.clasp.json

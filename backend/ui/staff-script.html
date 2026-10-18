@@ -1,0 +1,814 @@
+<script>
+(function () {
+  'use strict';
+
+  const view = document.getElementById('view');
+  const state = { data: null, tab: 'stock', photos: {} };
+
+  // ---------- Helpers ----------
+
+  /** Builds DOM safely: text is always set with textContent, never as HTML. */
+  function el(tag, props, ...children) {
+    const node = document.createElement(tag);
+    Object.keys(props || {}).forEach((key) => {
+      const value = props[key];
+      if (value === undefined || value === null || value === false) return;
+      if (key === 'class') node.className = value;
+      else if (key === 'text') node.textContent = value;
+      else if (key === 'value') node.value = value;
+      else if (key === 'checked' || key === 'selected' || key === 'disabled') node[key] = true;
+      else if (key.indexOf('on') === 0) node.addEventListener(key.slice(2), value);
+      else node.setAttribute(key, value === true ? '' : value);
+    });
+    children.flat(Infinity).forEach((child) => {
+      if (child === null || child === undefined || child === false) return;
+      node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    });
+    return node;
+  }
+
+  function call(name, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler((err) => reject(new Error(String((err && err.message) || err).replace(/^(Exception|Error): /, ''))))
+        [name](...args);
+    });
+  }
+
+  let toastTimer = null;
+  function toast(message, isError) {
+    const box = document.getElementById('toast');
+    box.textContent = message;
+    box.className = 'show' + (isError ? ' error' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { box.className = ''; }, isError ? 7000 : 3500);
+  }
+
+  /** Runs an action with its button disabled, showing any error as a toast. */
+  async function act(button, fn) {
+    if (button) button.disabled = true;
+    try {
+      return await fn();
+    } catch (err) {
+      toast(err.message || String(err), true);
+      return undefined;
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const dayText = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const today = () => dayText(new Date());
+  const daysAgo = (n) => dayText(new Date(Date.now() - n * 86400000));
+
+  const isAdmin = () => state.data.me.role === 'admin';
+  const allItems = () => state.data.items;
+  const activeItems = () => state.data.items.filter((i) => i.active);
+  const itemById = (id) => state.data.items.filter((i) => i.item_id === id)[0];
+  const itemName = (id) => (itemById(id) || {}).name || id;
+  const activeLocations = (type) => state.data.locations.filter((l) => l.active && (!type || l.type === type));
+  const locName = (id) => (state.data.locations.filter((l) => l.location_id === id)[0] || {}).name || id;
+  const onHand = (itemId, locationId) => state.data.stock[itemId + '|' + locationId] || 0;
+
+  function field(label, control, hint) {
+    return el('label', null, label, control, hint ? el('span', { class: 'muted' }, hint) : null);
+  }
+
+  function locationSelect(type, selected, includeAll) {
+    const options = activeLocations(type).map((l) => el('option', { value: l.location_id, selected: l.location_id === selected }, l.name));
+    return el('select', null, includeAll ? el('option', { value: '' }, 'All locations') : null, options);
+  }
+
+  function itemSelect(selected, includeBlank) {
+    return el('select', null,
+      includeBlank ? el('option', { value: '' }, includeBlank) : null,
+      allItems().map((i) => el('option', { value: i.item_id, selected: i.item_id === selected }, i.name + (i.active ? '' : ' (inactive)'))));
+  }
+
+  async function reload() {
+    state.data = await call('staffBootstrap');
+  }
+
+  function csvTools(result) {
+    const text = el('textarea', { class: 'csv', readonly: true }, result.csv);
+    const box = el('div', { hidden: true }, el('p', { class: 'muted' }, 'Select all, copy, and paste into a spreadsheet.'), text);
+    const blob = new Blob(['﻿' + result.csv], { type: 'text/csv;charset=utf-8' });
+    const link = el('a', { href: URL.createObjectURL(blob), download: result.filename }, 'Download ' + result.filename);
+    return el('div', { class: 'card' }, link, ' · ',
+      el('button', { class: 'secondary', onclick: () => { box.hidden = false; text.select(); } }, 'Download not working? Show the CSV text'),
+      box);
+  }
+
+  function table(headers, rows) {
+    return el('div', { class: 'table-wrap' }, el('table', null,
+      el('thead', null, el('tr', null, headers.map((h) => el('th', { class: h.num ? 'num' : null }, h.label || h)))),
+      el('tbody', null, rows)));
+  }
+
+  /** The "every active item with a number box" layout used by Receive, Transfer and Count. */
+  function quantityTable(options) {
+    const inputs = {};
+    const infoCells = {};
+    const rows = activeItems().map((item) => {
+      inputs[item.item_id] = el('input', {
+        class: 'qty', type: 'number', min: '0', step: '1', inputmode: 'numeric', 'aria-label': options.inputLabel + ': ' + item.name,
+      });
+      infoCells[item.item_id] = options.infoLabel ? el('td', { class: 'num muted' }) : null;
+      return el('tr', null,
+        el('td', null, item.name, item.unit ? el('span', { class: 'muted' }, ' · ' + item.unit) : null),
+        infoCells[item.item_id],
+        el('td', { class: 'num' }, inputs[item.item_id]));
+    });
+    const headers = ['Item'];
+    if (options.infoLabel) headers.push({ label: options.infoLabel, num: true });
+    headers.push({ label: options.inputLabel, num: true });
+    const api = {
+      node: rows.length ? table(headers, rows) : el('p', null, 'No active items yet. Add them under Items.'),
+      values() {
+        const out = {};
+        Object.keys(inputs).forEach((id) => { out[id] = inputs[id].value.trim(); });
+        return out;
+      },
+      filled() {
+        return Object.keys(inputs).filter((id) => inputs[id].value.trim() !== '');
+      },
+      updateInfo(fn) {
+        Object.keys(infoCells).forEach((id) => { if (infoCells[id]) infoCells[id].textContent = fn(id); });
+      },
+    };
+    return api;
+  }
+
+  // ---------- Tabs ----------
+
+  const TABS = [
+    ['stock', 'Stock', renderStock],
+    ['receive', 'Receive', renderReceive],
+    ['transfer', 'Transfer', renderTransfer],
+    ['count', 'Count', renderCount],
+    ['adjust', 'Adjust', renderAdjust],
+    ['void', 'Void visit', renderVoid],
+    ['items', 'Items', renderItems],
+    ['unknown', 'Unknown barcodes', renderUnknown],
+    ['reports', 'Reports', renderReports],
+    ['devices', 'Devices', renderDevices],
+  ];
+  const ADMIN_TABS = [
+    ['students', 'Students', renderStudents],
+    ['staff', 'Staff', renderStaff],
+    ['setup', 'Setup', renderSetup],
+  ];
+
+  function renderTabs() {
+    const nav = document.getElementById('tabs');
+    const button = (tab) => el('button', {
+      'aria-current': tab[0] === state.tab ? 'page' : null,
+      onclick: () => show(tab[0]),
+    }, tab[1] + (tab[0] === 'unknown' && state.data.unknown_barcodes.length ? ' (' + state.data.unknown_barcodes.length + ')' : ''));
+    nav.replaceChildren(...TABS.map(button), ...(isAdmin() ? [el('span', { class: 'sep' }), ...ADMIN_TABS.map(button)] : []));
+  }
+
+  function show(tabId) {
+    state.tab = tabId;
+    renderTabs();
+    view.replaceChildren();
+    const tab = TABS.concat(ADMIN_TABS).filter((t) => t[0] === tabId)[0] || TABS[0];
+    tab[2]();
+    view.focus();
+  }
+
+  // ---------- Stock ----------
+
+  function renderStock() {
+    const box = el('div', null, el('p', { class: 'muted' }, 'Loading…'));
+    const refresh = el('button', { class: 'secondary' }, 'Refresh');
+    const csv = el('button', { class: 'secondary' }, 'Download CSV');
+    const csvBox = el('div');
+    async function load() {
+      const report = await act(refresh, () => call('staffStockReport'));
+      if (!report) return;
+      if (!report.rows.length) return box.replaceChildren(el('p', null, 'No items yet. Add them under Items.'));
+      box.replaceChildren(table(
+        ['Item'].concat(report.locations.map((l) => ({ label: l.name, num: true }))),
+        report.rows.map((r) => el('tr', null,
+          el('td', null, r.name, el('div', { class: 'muted' }, r.item_id + (r.category ? ' · ' + r.category : ''))),
+          r.cells.map((c) => el('td', {
+            class: 'num' + (!c.stocked ? '' : c.on_hand <= 0 ? ' zero' : c.on_hand <= c.threshold ? ' low' : ''),
+          }, c.stocked ? String(c.on_hand) : '–'))))));
+    }
+    refresh.addEventListener('click', load);
+    csv.addEventListener('click', () => act(csv, async () => csvBox.replaceChildren(csvTools(await call('staffReportCsv', 'stock', {})))));
+    view.append(
+      el('h2', null, 'Stock on hand'),
+      el('p', { class: 'muted' }, 'Amber: at or below its threshold. Red: zero or less. Stock can go negative when items leave unrecorded; a stock count fixes it. A dash means never stocked there.'),
+      el('div', { class: 'actions' }, refresh, csv), csvBox, box);
+    load();
+  }
+
+  // ---------- Receive, transfer, count, adjust ----------
+
+  function renderReceive() {
+    const store = (activeLocations('STORE')[0] || activeLocations()[0] || {}).location_id;
+    const location = locationSelect(null, store);
+    const quantities = quantityTable({ inputLabel: 'Received' });
+    const donor = el('input', { maxlength: '200', placeholder: 'For example: alumni drive' });
+    const date = el('input', { type: 'date', value: today() });
+    const note = el('input', { maxlength: '500' });
+    const save = el('button', { class: 'primary' }, 'Save delivery');
+    save.addEventListener('click', () => act(save, async () => {
+      const filled = quantities.filled();
+      if (!filled.length) throw new Error('Enter at least one quantity.');
+      if (!confirm('Record ' + filled.length + ' item(s) received into ' + locName(location.value) + '?')) return;
+      const result = await call('staffReceive', {
+        location_id: location.value, quantities: quantities.values(), donor_source: donor.value, delivery_date: date.value, note: note.value,
+      });
+      await reload();
+      show('receive');
+      toast('Saved ' + result.lines + ' item(s). Batch ' + result.batch_id);
+    }));
+    view.append(
+      el('h2', null, 'Receive delivery'),
+      el('div', { class: 'card' },
+        el('div', { class: 'row' }, field('Into', location), field('Donor or source (optional)', donor), field('Delivery date', date)),
+        field('Note (optional)', note)),
+      quantities.node,
+      el('p', { class: 'muted' }, 'Blank or zero rows are skipped.'),
+      el('div', { class: 'actions' }, save));
+  }
+
+  function renderTransfer() {
+    const from = locationSelect(null, (activeLocations('STORE')[0] || {}).location_id);
+    const to = locationSelect(null, (activeLocations('PANTRY')[0] || {}).location_id);
+    const quantities = quantityTable({ infoLabel: 'At source', inputLabel: 'Move' });
+    const note = el('input', { maxlength: '500' });
+    const update = () => quantities.updateInfo((id) => String(onHand(id, from.value)));
+    from.addEventListener('change', update);
+    update();
+    const save = el('button', { class: 'primary' }, 'Save transfer');
+    save.addEventListener('click', () => act(save, async () => {
+      if (from.value === to.value) throw new Error('The from and to locations must be different.');
+      const filled = quantities.filled();
+      if (!filled.length) throw new Error('Enter at least one quantity.');
+      if (!confirm('Move ' + filled.length + ' item(s) from ' + locName(from.value) + ' to ' + locName(to.value) + '?')) return;
+      const result = await call('staffTransfer', {
+        from_location_id: from.value, to_location_id: to.value, quantities: quantities.values(), note: note.value,
+      });
+      await reload();
+      show('transfer');
+      toast('Moved ' + result.items + ' item(s). Batch ' + result.batch_id);
+    }));
+    view.append(
+      el('h2', null, 'Transfer stock'),
+      el('div', { class: 'card' }, el('div', { class: 'row' }, field('From', from), field('To', to)), field('Note (optional)', note)),
+      quantities.node,
+      el('div', { class: 'actions' }, save));
+  }
+
+  function renderCount() {
+    const location = locationSelect(null, (activeLocations('PANTRY')[0] || activeLocations()[0] || {}).location_id);
+    const quantities = quantityTable({ infoLabel: 'System', inputLabel: 'Counted' });
+    const note = el('input', { maxlength: '500' });
+    const update = () => quantities.updateInfo((id) => String(onHand(id, location.value)));
+    location.addEventListener('change', update);
+    update();
+    const save = el('button', { class: 'primary' }, 'Save count');
+    save.addEventListener('click', () => act(save, async () => {
+      const filled = quantities.filled();
+      if (!filled.length) throw new Error('Enter at least one count.');
+      if (!confirm('Save counts for ' + filled.length + ' item(s) at ' + locName(location.value) + '? Differences are recorded as adjustments.')) return;
+      const result = await call('staffCount', { location_id: location.value, quantities: quantities.values(), note: note.value });
+      await reload();
+      show('count');
+      toast('Count saved. ' + result.adjusted + ' item(s) adjusted.');
+    }));
+    view.append(
+      el('h2', null, 'Stock count'),
+      el('p', { class: 'notice' }, 'Sync every pantry device first (its Sync screen shows nothing waiting), so no recorded take arrives after the count. Leave an item blank if you did not count it; enter 0 if none are left.'),
+      el('div', { class: 'card' }, el('div', { class: 'row' }, field('Location', location), field('Note (optional)', note))),
+      quantities.node,
+      el('div', { class: 'actions' }, save));
+  }
+
+  function renderAdjust() {
+    const location = locationSelect(null);
+    const item = itemSelect('', 'Choose an item');
+    const quantity = el('input', { type: 'number', step: '1', inputmode: 'numeric', placeholder: 'e.g. -2 or 5' });
+    const reason = el('select', null, ['damaged', 'expired', 'correction', 'other'].map((r) => el('option', { value: r }, r)));
+    const note = el('input', { maxlength: '500' });
+    const save = el('button', { class: 'primary' }, 'Save adjustment');
+    save.addEventListener('click', () => act(save, async () => {
+      if (!item.value) throw new Error('Choose an item.');
+      if (!confirm('Change ' + itemName(item.value) + ' at ' + locName(location.value) + ' by ' + quantity.value + ' (' + reason.value + ')?')) return;
+      await call('staffAdjust', { location_id: location.value, item_id: item.value, quantity: quantity.value, reason: reason.value, note: note.value });
+      await reload();
+      show('adjust');
+      toast('Adjustment saved.');
+    }));
+    view.append(
+      el('h2', null, 'Manual adjustment'),
+      el('p', { class: 'muted' }, 'For one item: a negative number removes stock (damaged, expired), a positive number adds it (correction). For a full recount use Count.'),
+      el('div', { class: 'card' },
+        el('div', { class: 'row' }, field('Location', location), field('Item', item), field('Change', quantity)),
+        el('div', { class: 'row' }, field('Reason', reason), field('Note (required for "other")', note)),
+        el('div', { class: 'actions' }, save)));
+  }
+
+  function renderVoid() {
+    const id = el('input', { placeholder: 'Visit ID from a report or the large-quantity email', autocomplete: 'off' });
+    const find = el('button', { class: 'secondary' }, 'Find visit');
+    const details = el('div');
+    find.addEventListener('click', () => act(find, async () => {
+      const visit = await call('staffFindVisit', id.value);
+      const reason = el('input', { maxlength: '300', placeholder: 'Why is this visit being voided?' });
+      const go = el('button', { class: 'danger', disabled: visit.voided }, visit.voided ? 'Already voided' : 'Void this visit');
+      go.addEventListener('click', () => act(go, async () => {
+        if (!reason.value.trim()) throw new Error('Give a reason.');
+        if (!confirm('Void this visit? Its items are added back to stock. The original record stays.')) return;
+        const result = await call('staffVoidVisit', { visit_id: visit.visit_id, reason: reason.value });
+        await reload();
+        show('void');
+        toast('Visit voided: ' + result.lines + ' line(s) reversed.');
+      }));
+      details.replaceChildren(el('div', { class: 'card' },
+        el('p', null, el('b', null, locName(visit.location_id)), ' · ', visit.occurred_at, visit.flagged ? el('span', { class: 'pill bad' }, ' large quantity ') : null),
+        table(['Type', 'Item', { label: 'Qty', num: true }], visit.lines.map((l) => el('tr', null,
+          el('td', null, l.type), el('td', null, l.name), el('td', { class: 'num' }, String(l.quantity))))),
+        el('div', { class: 'row' }, field('Reason', reason)),
+        el('div', { class: 'actions' }, go)));
+    }));
+    view.append(
+      el('h2', null, 'Void a visit'),
+      el('p', { class: 'muted' }, 'Use this when a visit was a mistake, for example a test or a wrong quantity. VOID rows reverse it; nothing is deleted.'),
+      el('div', { class: 'card' }, el('div', { class: 'row' }, field('Visit ID', id)), el('div', { class: 'actions' }, find)),
+      details);
+  }
+
+  // ---------- Items ----------
+
+  async function loadPhotos(ids) {
+    const missing = ids.filter((id) => {
+      const item = itemById(id);
+      return item && item.photo_version && (!state.photos[id] || state.photos[id].version !== item.photo_version);
+    });
+    if (!missing.length) return;
+    const photos = await call('staffPhotos', missing);
+    Object.keys(photos).forEach((id) => { state.photos[id] = photos[id]; });
+  }
+
+  function photoImg(id, cls) {
+    const img = el('img', { class: cls, alt: '' });
+    if (state.photos[id]) img.src = state.photos[id].data;
+    return img;
+  }
+
+  function renderItems() {
+    const add = el('button', { class: 'primary', onclick: () => editItem(null) }, 'Add item');
+    const rows = allItems().map((item) => {
+      const codes = state.data.barcodes.filter((b) => b.item_id === item.item_id).length;
+      return el('tr', null,
+        el('td', null, photoImg(item.item_id, 'thumb')),
+        el('td', null, item.name, el('div', { class: 'muted' }, item.item_id + (item.category ? ' · ' + item.category : ''))),
+        el('td', { class: 'num' }, String(codes)),
+        el('td', null, el('span', { class: 'pill' + (item.active ? ' ok' : '') }, item.active ? 'active' : 'inactive')),
+        el('td', null, el('button', { class: 'secondary', onclick: () => editItem(item.item_id) }, 'Edit')));
+    });
+    view.append(
+      el('h2', null, 'Items'),
+      el('p', { class: 'muted' }, 'Students see active items in this order (lowest sort number first). Every item has an internal code (NB-…) that can be printed as a barcode label.'),
+      el('div', { class: 'actions' }, add),
+      rows.length ? table(['', 'Item', { label: 'Barcodes', num: true }, 'Status', ''], rows) : el('p', null, 'No items yet.'));
+    act(null, async () => {
+      await loadPhotos(allItems().map((i) => i.item_id));
+      if (state.tab === 'items') {
+        view.querySelectorAll('tbody tr').forEach((tr, i) => {
+          const photo = state.photos[allItems()[i].item_id];
+          if (photo) tr.querySelector('img').src = photo.data;
+        });
+      }
+    });
+  }
+
+  function editItem(itemId) {
+    const item = itemId ? itemById(itemId) : { name: '', category: '', unit: '', sort_order: '', active: true };
+    view.replaceChildren();
+    const name = el('input', { value: item.name, maxlength: '80', required: true });
+    const category = el('input', { value: item.category, maxlength: '40', placeholder: 'e.g. Staples, Drinks, Toiletries' });
+    const unit = el('input', { value: item.unit, maxlength: '20', placeholder: 'e.g. pack, bottle, can' });
+    const sort = el('input', { type: 'number', min: '0', step: '1', value: item.sort_order === '' ? '' : String(item.sort_order) });
+    const active = el('input', { type: 'checkbox', checked: item.active });
+    const save = el('button', { class: 'primary' }, itemId ? 'Save changes' : 'Add item');
+    save.addEventListener('click', () => act(save, async () => {
+      const result = await call('staffSaveItem', {
+        item_id: itemId || '', name: name.value, category: category.value, unit: unit.value, sort_order: sort.value, active: active.checked,
+      });
+      await reload();
+      toast(itemId ? 'Item saved.' : 'Item added as ' + result.item_id + '. Now add a photo and barcodes.');
+      editItem(result.item_id);
+    }));
+    view.append(
+      el('div', { class: 'actions' }, el('button', { class: 'secondary', onclick: () => show('items') }, '← All items')),
+      el('h2', null, itemId ? item.name : 'New item'),
+      el('div', { class: 'card' },
+        el('div', { class: 'row' }, field('Name (shown to students)', name), field('Category', category), field('Unit', unit), field('Sort order', sort)),
+        el('label', { class: 'check' }, active, 'Active (shown to students)'),
+        el('div', { class: 'actions' }, save)));
+    if (!itemId) return;
+
+    // Photo
+    const preview = photoImg(itemId, 'photo');
+    const file = el('input', { type: 'file', accept: 'image/*' });
+    file.addEventListener('change', () => act(file, async () => {
+      if (!file.files[0]) return;
+      const dataUrl = await shrinkImage(file.files[0]);
+      const result = await call('staffSetItemPhoto', itemId, dataUrl);
+      state.photos[itemId] = { version: result.photo_version, data: dataUrl };
+      preview.src = dataUrl;
+      await reload();
+      toast('Photo saved.');
+    }));
+    const removePhoto = el('button', { class: 'danger' }, 'Remove photo');
+    removePhoto.addEventListener('click', () => act(removePhoto, async () => {
+      await call('staffRemoveItemPhoto', itemId);
+      delete state.photos[itemId];
+      preview.removeAttribute('src');
+      await reload();
+      toast('Photo removed.');
+    }));
+    view.append(el('div', { class: 'card' }, el('h3', null, 'Photo'), preview,
+      el('p', { class: 'muted' }, 'Square photos work best. It is shrunk to a small size before saving.'),
+      el('div', { class: 'row' }, field('Choose or take a photo', file)), el('div', { class: 'actions' }, removePhoto)));
+    loadPhotos([itemId]).then(() => { if (state.photos[itemId]) preview.src = state.photos[itemId].data; }).catch(() => {});
+
+    // Barcodes
+    const codes = state.data.barcodes.filter((b) => b.item_id === itemId);
+    const codeInput = el('input', { placeholder: 'Scan with the USB scanner or type the digits', inputmode: 'numeric', autocomplete: 'off' });
+    const link = el('button', { class: 'secondary' }, 'Link barcode');
+    const doLink = () => act(link, async () => {
+      if (!codeInput.value.trim()) return;
+      const result = await call('staffLinkBarcode', codeInput.value.trim(), itemId);
+      await reload();
+      editItem(itemId);
+      toast('Linked ' + result.code + '.');
+    });
+    link.addEventListener('click', doLink);
+    codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doLink(); } });
+    view.append(el('div', { class: 'card' }, el('h3', null, 'Barcodes'),
+      el('p', { class: 'muted' }, 'Link every brand that should count as this item. Internal code for labels: ', el('b', null, itemId)),
+      codes.length ? table(['Code', ''], codes.map((b) => el('tr', null, el('td', null, b.code), el('td', null,
+        el('button', { class: 'danger', onclick: (e) => act(e.target, async () => {
+          if (!confirm('Unlink ' + b.code + '?')) return;
+          await call('staffUnlinkBarcode', b.code);
+          await reload();
+          editItem(itemId);
+        }) }, 'Unlink'))))) : el('p', null, 'No barcodes linked yet.'),
+      el('div', { class: 'row' }, field('Barcode', codeInput)), el('div', { class: 'actions' }, link)));
+
+    // Thresholds
+    const defaultThreshold = state.data.settings.default_threshold;
+    view.append(el('div', { class: 'card' }, el('h3', null, 'Low-stock thresholds'),
+      el('p', { class: 'muted' }, 'An alert is emailed when stock is at or below the threshold. Blank uses the default (' + defaultThreshold + ').'),
+      table(['Location', 'Threshold', 'Reorder qty', ''], activeLocations().map((loc) => {
+        const existing = state.data.thresholds.filter((t) => t.item_id === itemId && t.location_id === loc.location_id)[0] || {};
+        const threshold = el('input', { class: 'qty', type: 'number', min: '0', value: existing.threshold === undefined ? '' : String(existing.threshold), placeholder: String(defaultThreshold) });
+        const reorder = el('input', { class: 'qty', type: 'number', min: '0', value: existing.reorder_qty === undefined ? '' : String(existing.reorder_qty) });
+        const saveRow = el('button', { class: 'secondary' }, 'Save');
+        saveRow.addEventListener('click', () => act(saveRow, async () => {
+          await call('staffSetThreshold', { item_id: itemId, location_id: loc.location_id, threshold: threshold.value, reorder_qty: reorder.value });
+          await reload();
+          toast('Threshold saved for ' + loc.name + '.');
+        }));
+        return el('tr', null, el('td', null, loc.name), el('td', null, threshold), el('td', null, reorder), el('td', null, saveRow));
+      }))));
+  }
+
+  /** Shrinks a photo to fit in one Sheets cell (under 48,000 characters as a data URL). */
+  async function shrinkImage(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      for (const size of [320, 240, 180, 140]) {
+        const scale = Math.min(1, size / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        for (const quality of [0.8, 0.65, 0.5]) {
+          const data = canvas.toDataURL('image/jpeg', quality);
+          if (data.length <= 47000) return data;
+        }
+      }
+      throw new Error('This photo could not be made small enough. Try a simpler photo.');
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function renderUnknown() {
+    const list = state.data.unknown_barcodes;
+    view.append(
+      el('h2', null, 'Unknown barcodes'),
+      el('p', { class: 'muted' }, 'Barcodes students scanned that matched no item. Link each to the item it is (a new brand of an existing item), or dismiss it.'));
+    if (!list.length) return view.append(el('p', null, 'Nothing waiting.'));
+    view.append(table(['Code', { label: 'Times seen', num: true }, 'Last seen', 'Link to', ''], list.map((u) => {
+      const select = itemSelect('', 'Choose an item');
+      const link = el('button', { class: 'secondary' }, 'Link');
+      link.addEventListener('click', () => act(link, async () => {
+        if (!select.value) throw new Error('Choose an item first.');
+        await call('staffLinkBarcode', u.code, select.value);
+        await reload();
+        show('unknown');
+        toast('Linked ' + u.code + ' to ' + itemName(select.value) + '.');
+      }));
+      const dismiss = el('button', { class: 'danger' }, 'Dismiss');
+      dismiss.addEventListener('click', () => act(dismiss, async () => {
+        await call('staffDismissUnknownBarcode', u.code);
+        await reload();
+        show('unknown');
+      }));
+      return el('tr', null, el('td', null, u.code), el('td', { class: 'num' }, String(u.times_seen)), el('td', null, u.last_seen),
+        el('td', null, select), el('td', null, el('div', { class: 'actions' }, link, dismiss)));
+    })));
+  }
+
+  // ---------- Reports ----------
+
+  function renderReports() {
+    const kind = el('select', null,
+      el('option', { value: 'transactions' }, 'Transactions'),
+      el('option', { value: 'visits' }, 'Visits'),
+      el('option', { value: 'flagged' }, 'Flagged visits (10 or more of one item)'));
+    const from = el('input', { type: 'date', value: daysAgo(6) });
+    const to = el('input', { type: 'date', value: today() });
+    const location = locationSelect(null, '', true);
+    const item = itemSelect('', 'All items');
+    const type = el('select', null, ['', 'OUT', 'IN', 'TRANSFER', 'ADJUST', 'VOID'].map((t) => el('option', { value: t }, t || 'All types')));
+    const txOnly = el('div', { class: 'row' }, field('Item', item), field('Type', type));
+    kind.addEventListener('change', () => { txOnly.hidden = kind.value !== 'transactions'; });
+    const runButton = el('button', { class: 'primary' }, 'Show report');
+    const csvButton = el('button', { class: 'secondary' }, 'Download CSV');
+    const out = el('div');
+    const filters = () => ({
+      from: from.value, to: to.value, location_id: location.value,
+      item_id: kind.value === 'transactions' ? item.value : '', type: kind.value === 'transactions' ? type.value : '',
+      flagged_only: kind.value === 'flagged',
+    });
+    runButton.addEventListener('click', () => act(runButton, async () => {
+      if (kind.value === 'transactions') {
+        const report = await call('staffTransactionsReport', filters());
+        out.replaceChildren(summary(report), table(
+          ['Time', 'Location', 'Type', 'Item', { label: 'Qty', num: true }, 'Visit / batch', 'Staff', 'Reason / flag'],
+          report.rows.map((r) => el('tr', null, el('td', null, r.occurred_at), el('td', null, r.location), el('td', null, r.type),
+            el('td', null, r.item), el('td', { class: 'num' }, String(r.quantity)), el('td', { class: 'muted' }, r.visit_id || r.batch_id),
+            el('td', null, r.staff_email), el('td', null, [r.reason, r.flag].filter(Boolean).join(' · '))))));
+      } else {
+        const report = await call('staffVisitsReport', filters());
+        out.replaceChildren(summary(report), table(
+          ['Time', 'Location', 'Visit ID', { label: 'Lines', num: true }, 'Large lines', 'Notes'],
+          report.rows.map((r) => el('tr', null, el('td', null, r.occurred_at), el('td', null, r.location), el('td', { class: 'muted' }, r.visit_id),
+            el('td', { class: 'num' }, String(r.lines)), el('td', null, r.large_lines),
+            el('td', null, [r.flagged ? 'flagged' : '', r.unverified_student ? 'ID not on roster' : '', r.voided ? 'voided' : '', r.source === 'PUBLIC' ? 'student phone' : 'pantry device'].filter(Boolean).join(' · '))))));
+      }
+    }));
+    csvButton.addEventListener('click', () => act(csvButton, async () => {
+      out.replaceChildren(csvTools(await call('staffReportCsv', kind.value === 'transactions' ? 'transactions' : 'visits', filters())));
+    }));
+    function summary(report) {
+      return el('p', { class: 'muted' }, report.total + ' row(s)' + (report.limited ? '. Showing the latest ' + report.rows.length + '; download the CSV for all.' : '.'));
+    }
+    view.append(
+      el('h2', null, 'Reports'),
+      el('div', { class: 'card' },
+        el('div', { class: 'row' }, field('Report', kind), field('From', from), field('To', to), field('Location', location)),
+        txOnly,
+        el('div', { class: 'actions' }, runButton, csvButton)),
+      out);
+  }
+
+  // ---------- Devices ----------
+
+  function renderDevices() {
+    const pantry = locationSelect('PANTRY');
+    const label = el('input', { maxlength: '60', placeholder: 'e.g. Pantri 1 laptop' });
+    const create = el('button', { class: 'primary' }, 'Get a setup code');
+    const codeBox = el('div');
+    const appUrl = state.data.settings.pwa_url || '(the student app link)';
+    create.addEventListener('click', () => act(create, async () => {
+      const result = await call('staffCreateDeviceCode', { location_id: pantry.value, label: label.value });
+      codeBox.replaceChildren(el('div', { class: 'card' },
+        el('p', null, 'On the device, open ', el('b', null, appUrl), ', scroll to the bottom, tap ', el('b', null, 'Pantry device setup'), ' and enter:'),
+        el('div', { class: 'code' }, result.code),
+        el('p', { class: 'muted' }, 'For ' + result.location_name + '. Works once, for ' + result.minutes + ' minutes.')));
+    }));
+    const list = el('div', null, el('p', { class: 'muted' }, 'Loading devices…'));
+    act(null, async () => {
+      const devices = await call('staffListDevices');
+      if (!devices.length) return list.replaceChildren(el('p', null, 'No pantry devices yet.'));
+      list.replaceChildren(table(['Device', 'Pantry', 'Set up', 'Last seen', ''], devices.map((d) => {
+        const revoke = el('button', { class: 'danger', disabled: d.revoked }, d.revoked ? 'Revoked' : 'Revoke');
+        revoke.addEventListener('click', () => act(revoke, async () => {
+          if (!confirm('Revoke ' + d.label + '? It goes back to being a student phone and stops queueing offline visits. Send any queued visits first.')) return;
+          await call('staffRevokeDevice', d.device_id);
+          show('devices');
+        }));
+        return el('tr', null, el('td', null, d.label), el('td', null, locName(d.location_id)),
+          el('td', null, d.created_at, el('div', { class: 'muted' }, d.created_by)), el('td', null, d.last_seen), el('td', null, revoke));
+      })));
+    });
+    view.append(
+      el('h2', null, 'Pantry devices'),
+      el('p', { class: 'muted' }, 'A pantry device (the pantry laptop or a pantry phone) keeps working offline and queues visits. Phones not set up here are treated as students\' own phones and need a connection.'),
+      el('div', { class: 'card' }, el('div', { class: 'row' }, field('Pantry', pantry), field('Device name', label)), el('div', { class: 'actions' }, create)),
+      codeBox,
+      el('h3', null, 'Devices'),
+      list);
+  }
+
+  // ---------- Admin: students ----------
+
+  function renderStudents() {
+    const id = el('input', { inputmode: 'numeric', autocomplete: 'off', placeholder: 'Student ID' });
+    const find = el('button', { class: 'primary' }, 'Look up');
+    const out = el('div');
+    const run = () => act(find, async () => {
+      const result = await call('adminStudentLookup', id.value);
+      if (!result.found && !result.visits.length) return out.replaceChildren(el('p', null, 'No record for that ID.'));
+      const s = result.student;
+      out.replaceChildren(
+        s ? el('div', { class: 'card' },
+          el('p', null, el('b', null, s.name), ' · ', s.student_id, ' · ', s.faculty),
+          el('p', { class: 'muted' }, s.visit_count + ' visit(s). First ' + s.first_visit_at + ', last ' + s.last_visit_at + '.')) : null,
+        result.visits.length ? table(['Time', 'Location', 'Items', 'Notes'], result.visits.map((v) => el('tr', null,
+          el('td', null, v.occurred_at), el('td', null, v.location), el('td', null, v.lines),
+          el('td', null, [v.flagged ? 'flagged' : '', v.voided ? 'voided' : ''].filter(Boolean).join(' · '))))) : el('p', null, 'No visits within the last year.'));
+    });
+    find.addEventListener('click', run);
+    id.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+    const exportButton = el('button', { class: 'secondary' }, 'Export student list for HEP (CSV)');
+    const exportBox = el('div');
+    exportButton.addEventListener('click', () => act(exportButton, async () => {
+      if (!confirm('This file has students\' IDs and names (personal data under PDPA). Share it only with Student Affairs (HEP) through UiTM channels, and delete your copy after use. Continue?')) return;
+      exportBox.replaceChildren(csvTools(await call('adminStudentsCsv')));
+    }));
+    view.append(
+      el('h2', null, 'Students'),
+      el('p', { class: 'notice' }, 'Personal data. Every look-up and export is recorded in the AuditLog tab. Records are removed one year after a student\'s last visit.'),
+      el('div', { class: 'card' }, el('div', { class: 'row' }, field('Student ID', id)), el('div', { class: 'actions' }, find)),
+      out,
+      el('h3', null, 'For Student Affairs (HEP)'),
+      el('p', { class: 'muted' }, 'Students who visited in the last year, with their name, faculty and number of visits, so HEP can contact those who need more help.'),
+      el('div', { class: 'actions' }, exportButton),
+      exportBox);
+    id.focus();
+  }
+
+  // ---------- Admin: staff ----------
+
+  function renderStaff(editing) {
+    const person = editing || { email: '', name: '', role: 'staff', receives_alerts: false, active: true };
+    const email = el('input', { type: 'email', value: person.email, readonly: !!editing, placeholder: 'name@uitm.edu.my' });
+    const name = el('input', { value: person.name, maxlength: '80' });
+    const role = el('select', null, ['staff', 'admin'].map((r) => el('option', { value: r, selected: person.role === r }, r)));
+    const alerts = el('input', { type: 'checkbox', checked: person.receives_alerts });
+    const active = el('input', { type: 'checkbox', checked: person.active });
+    const save = el('button', { class: 'primary' }, editing ? 'Save' : 'Add person');
+    save.addEventListener('click', () => act(save, async () => {
+      await call('adminSaveStaff', { email: email.value, name: name.value, role: role.value, receives_alerts: alerts.checked, active: active.checked });
+      await reload();
+      show('staff');
+      toast('Saved.');
+    }));
+    view.append(
+      el('h2', null, 'Staff access'),
+      el('p', { class: 'muted' }, 'Only people listed here and active can open the staff app. Admins also see student data, settings and this list. Staff do not need access to the spreadsheet itself.'),
+      table(['Email', 'Name', 'Role', 'Alerts', 'Active', ''], state.data.staff.map((s) => el('tr', null,
+        el('td', null, s.email), el('td', null, s.name), el('td', null, s.role), el('td', null, s.receives_alerts ? 'yes' : ''),
+        el('td', null, s.active ? 'yes' : 'no'),
+        el('td', null, el('button', { class: 'secondary', onclick: () => { view.replaceChildren(); renderStaff(s); } }, 'Edit'))))),
+      el('div', { class: 'card' },
+        el('h3', null, editing ? 'Edit ' + person.email : 'Add a person'),
+        el('div', { class: 'row' }, field('UiTM email', email), field('Name', name), field('Role', role)),
+        el('label', { class: 'check' }, alerts, 'Receives stock alert emails'),
+        el('label', { class: 'check' }, active, 'Active'),
+        el('div', { class: 'actions' }, save, editing ? el('button', { class: 'secondary', onclick: () => show('staff') }, 'Cancel') : null)));
+  }
+
+  // ---------- Admin: setup ----------
+
+  const SETTING_LABELS = {
+    student_mode: ['Student check', 'SELF: students give ID, name and faculty every visit. ROSTER: the ID must be on the imported roster.'],
+    student_id_pattern: ['Student ID format', 'A regular expression. Default ^\\d{10}$ means 10 digits.'],
+    retention_days: ['Keep visit records (days)', 'PDPA retention. Default 365.'],
+    large_qty_threshold: ['Large-quantity flag', 'A line at or above this is flagged for review, never blocked.'],
+    default_threshold: ['Default low-stock threshold', 'Used when an item has no threshold of its own.'],
+    max_line_qty: ['Highest quantity on one line', 'Catches typos like 1000.'],
+    inactivity_seconds: ['Reset after inactivity (seconds)', 'The student app clears the basket after this long.'],
+    thanks_seconds: ['Thank-you screen (seconds)', ''],
+    public_submits_per_minute: ['Student-phone visits per minute (limit)', 'Slows scripted spam. Far above real traffic.'],
+    pwa_url: ['Student app link', 'Shown on the Devices page and printed on the QR poster.'],
+    staff_url: ['Staff app link', 'Added to alert emails.'],
+  };
+
+  function renderSetup() {
+    // Locations
+    const newLocName = el('input', { maxlength: '60', placeholder: 'e.g. Pantri 2' });
+    const locType = el('select', null, el('option', { value: 'PANTRY' }, 'Pantry'), el('option', { value: 'STORE' }, 'Store'));
+    const addLoc = el('button', { class: 'secondary' }, 'Add location');
+    addLoc.addEventListener('click', () => act(addLoc, async () => {
+      const result = await call('adminSaveLocation', { name: newLocName.value, type: locType.value });
+      await reload();
+      show('setup');
+      toast('Added ' + result.location_id + '.');
+    }));
+    const locRows = state.data.locations.map((l) => {
+      const name = el('input', { value: l.name, maxlength: '60' });
+      const active = el('input', { type: 'checkbox', checked: l.active });
+      const save = el('button', { class: 'secondary' }, 'Save');
+      save.addEventListener('click', () => act(save, async () => {
+        await call('adminSaveLocation', { location_id: l.location_id, name: name.value, active: active.checked });
+        await reload();
+        toast('Saved.');
+      }));
+      return el('tr', null, el('td', null, l.location_id), el('td', null, name), el('td', null, l.type), el('td', null, active), el('td', null, save));
+    });
+
+    // Faculties
+    const facCode = el('input', { maxlength: '15', placeholder: 'e.g. FSKM' });
+    const facMs = el('input', { maxlength: '120', placeholder: 'Nama dalam BM' });
+    const facEn = el('input', { maxlength: '120', placeholder: 'Name in English' });
+    const addFac = el('button', { class: 'secondary' }, 'Save faculty');
+    addFac.addEventListener('click', () => act(addFac, async () => {
+      await call('adminSaveFaculty', { faculty_code: facCode.value, name_ms: facMs.value, name_en: facEn.value, active: true });
+      await reload();
+      show('setup');
+      toast('Faculty saved.');
+    }));
+    const facRows = state.data.faculties.map((f) => {
+      const toggle = el('button', { class: 'secondary' }, f.active ? 'Hide' : 'Show');
+      toggle.addEventListener('click', () => act(toggle, async () => {
+        await call('adminSaveFaculty', Object.assign({}, f, { active: !f.active }));
+        await reload();
+        show('setup');
+      }));
+      return el('tr', null, el('td', null, f.faculty_code), el('td', null, f.name_ms), el('td', null, f.name_en),
+        el('td', null, f.active ? 'shown' : 'hidden'), el('td', null, toggle));
+    });
+
+    // Settings
+    const inputs = {};
+    const settingRows = Object.keys(SETTING_LABELS).map((key) => {
+      const value = String(state.data.settings[key] === undefined ? '' : state.data.settings[key]);
+      inputs[key] = key === 'student_mode'
+        ? el('select', null, ['SELF', 'ROSTER'].map((m) => el('option', { value: m, selected: value === m }, m)))
+        : el('input', { value: value, type: /url/.test(key) ? 'url' : /pattern/.test(key) ? 'text' : 'number' });
+      return field(SETTING_LABELS[key][0], inputs[key], SETTING_LABELS[key][1]);
+    });
+    const saveSettings = el('button', { class: 'primary' }, 'Save settings');
+    saveSettings.addEventListener('click', () => act(saveSettings, async () => {
+      const values = {};
+      Object.keys(inputs).forEach((k) => { values[k] = inputs[k].value; });
+      await call('adminSaveSettings', values);
+      await reload();
+      toast('Settings saved.');
+    }));
+
+    // Maintenance
+    const check = el('button', { class: 'secondary' }, 'Run stock check now');
+    check.addEventListener('click', () => act(check, async () => {
+      const result = await call('adminRunStockCheck');
+      toast(result.mismatches ? result.mismatches + ' mismatch(es): see the email sent to admins.' : 'Stock matches the ledger.', result.mismatches > 0);
+    }));
+    const triggers = el('button', { class: 'secondary' }, 'Reinstall scheduled jobs');
+    triggers.addEventListener('click', () => act(triggers, async () => {
+      const result = await call('adminInstallTriggers');
+      toast('Scheduled: ' + result.installed.join(', '));
+    }));
+
+    view.append(
+      el('h2', null, 'Setup'),
+      el('div', { class: 'card' }, el('h3', null, 'Locations'),
+        table(['ID', 'Name', 'Type', 'Active', ''], locRows),
+        el('div', { class: 'row' }, field('New location name', newLocName), field('Type', locType)), el('div', { class: 'actions' }, addLoc)),
+      el('div', { class: 'card' }, el('h3', null, 'Faculties (students choose from these)'),
+        table(['Code', 'BM', 'English', 'Status', ''], facRows),
+        el('div', { class: 'row' }, field('Code', facCode), field('Name (BM)', facMs), field('Name (English)', facEn)),
+        el('p', { class: 'muted' }, 'Saving an existing code updates it.'),
+        el('div', { class: 'actions' }, addFac)),
+      el('div', { class: 'card' }, el('h3', null, 'Settings'), settingRows, el('div', { class: 'actions' }, saveSettings)),
+      el('div', { class: 'card' }, el('h3', null, 'Maintenance'),
+        el('p', { class: 'muted' }, 'Hourly: low-stock emails. Nightly at 2am: stock check, PDPA retention, large-quantity digest.'),
+        el('div', { class: 'actions' }, check, triggers)));
+  }
+
+  // ---------- Start ----------
+
+  document.getElementById('who').textContent = BOOT.me.email + ' · ' + BOOT.me.role;
+  act(null, async () => {
+    await reload();
+    show('stock');
+  });
+})();
+</script>
