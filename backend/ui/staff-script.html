@@ -365,10 +365,13 @@
 
   function renderItems() {
     const add = el('button', { class: 'primary', onclick: () => editItem(null) }, 'Add item');
+    const labels = el('button', { class: 'secondary', onclick: renderLabels }, 'Print barcode labels');
+    const thumbs = {};
     const rows = allItems().map((item) => {
       const codes = state.data.barcodes.filter((b) => b.item_id === item.item_id).length;
+      thumbs[item.item_id] = photoImg(item.item_id, 'thumb');
       return el('tr', null,
-        el('td', null, photoImg(item.item_id, 'thumb')),
+        el('td', null, thumbs[item.item_id]),
         el('td', null, item.name, el('div', { class: 'muted' }, item.item_id + (item.category ? ' · ' + item.category : ''))),
         el('td', { class: 'num' }, String(codes)),
         el('td', null, el('span', { class: 'pill' + (item.active ? ' ok' : '') }, item.active ? 'active' : 'inactive')),
@@ -377,16 +380,12 @@
     view.append(
       el('h2', null, 'Items'),
       el('p', { class: 'muted' }, 'Students see active items in this order (lowest sort number first). Every item has an internal code (NB-…) that can be printed as a barcode label.'),
-      el('div', { class: 'actions' }, add),
+      el('div', { class: 'actions' }, add, labels),
       rows.length ? table(['', 'Item', { label: 'Barcodes', num: true }, 'Status', ''], rows) : el('p', null, 'No items yet.'));
+    // Fills in this list's own thumbnails, so it is harmless if staff have already moved on to another view.
     act(null, async () => {
-      await loadPhotos(allItems().map((i) => i.item_id));
-      if (state.tab === 'items') {
-        view.querySelectorAll('tbody tr').forEach((tr, i) => {
-          const photo = state.photos[allItems()[i].item_id];
-          if (photo) tr.querySelector('img').src = photo.data;
-        });
-      }
+      await loadPhotos(Object.keys(thumbs));
+      Object.keys(thumbs).forEach((id) => { if (state.photos[id]) thumbs[id].src = state.photos[id].data; });
     });
   }
 
@@ -798,9 +797,172 @@
         el('p', { class: 'muted' }, 'Saving an existing code updates it.'),
         el('div', { class: 'actions' }, addFac)),
       el('div', { class: 'card' }, el('h3', null, 'Settings'), settingRows, el('div', { class: 'actions' }, saveSettings)),
+      el('div', { class: 'card' }, el('h3', null, 'Print'),
+        el('p', { class: 'muted' }, 'A QR poster for each active pantry, for students using their own phones, and barcode labels for items that have no barcode of their own.'),
+        el('div', { class: 'actions' },
+          el('button', { class: 'secondary', onclick: renderPosters }, 'QR posters'),
+          el('button', { class: 'secondary', onclick: renderLabels }, 'Barcode labels'))),
       el('div', { class: 'card' }, el('h3', null, 'Maintenance'),
         el('p', { class: 'muted' }, 'Hourly: low-stock emails. Nightly at 2am: stock check, PDPA retention, large-quantity digest.'),
         el('div', { class: 'actions' }, check, triggers)));
+  }
+
+  // ---------- Print: QR posters and barcode labels ----------
+  // A4 sheets drawn at real size. The print stylesheet hides everything else, so window.print() prints only them.
+
+  function svgEl(tag, attrs, ...children) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.keys(attrs).forEach((key) => node.setAttribute(key, attrs[key]));
+    node.append(...children);
+    return node;
+  }
+
+  /** A QR code from the server's rows of "0" and "1", with the 4-module light margin scanners need. */
+  function qrSvg(rows, label) {
+    const quiet = 4;
+    const n = rows.length + quiet * 2;
+    let path = '';
+    rows.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) if (row[x] === '1') path += 'M' + (x + quiet) + ' ' + (y + quiet) + 'h1v1h-1z';
+    });
+    return svgEl('svg', { viewBox: '0 0 ' + n + ' ' + n, 'shape-rendering': 'crispEdges', role: 'img', 'aria-label': label },
+      svgEl('rect', { width: n, height: n, fill: '#fff' }), svgEl('path', { d: path, fill: '#000' }));
+  }
+
+  /** A Code 128 barcode from the server's bars ("1" = bar), 0.33 mm per module, with a 10-module light margin. */
+  function barsSvg(bars, label) {
+    const quiet = 10;
+    const n = bars.length + quiet * 2;
+    let path = '';
+    for (let x = 0; x < bars.length; x++) {
+      if (bars[x] !== '1') continue;
+      let w = 1;
+      while (bars[x + w] === '1') w++;
+      path += 'M' + (x + quiet) + ' 0h' + w + 'v1h-' + w + 'z';
+      x += w - 1;
+    }
+    return svgEl('svg', {
+      viewBox: '0 0 ' + n + ' 1', width: (n * 0.33).toFixed(2) + 'mm', height: '12mm', preserveAspectRatio: 'none',
+      'shape-rendering': 'crispEdges', role: 'img', 'aria-label': label,
+    }, svgEl('rect', { width: n, height: 1, fill: '#fff' }), svgEl('path', { d: path, fill: '#000' }));
+  }
+
+  function printTools(title, hint, ...controls) {
+    const print = el('button', { class: 'primary', onclick: () => window.print() }, 'Print');
+    return {
+      print: print,
+      node: el('div', { class: 'no-print' },
+        el('div', { class: 'actions' }, el('button', { class: 'secondary', onclick: () => show(state.tab) }, '← Back'), print),
+        el('h2', null, title),
+        el('p', { class: 'muted' }, hint, ' In the print dialog choose A4, scale 100% (Actual size), and turn off headers and footers.'),
+        controls),
+    };
+  }
+
+  // Student-facing text, BM first. Matches the student app (web/app.js) and its privacy notice.
+  const POSTER_STEPS = [
+    ['Imbas kod QR ini dengan kamera telefon anda.', 'Scan this QR code with your phone camera.'],
+    ['Masukkan ID pelajar anda.', 'Enter your student ID.'],
+    ['Isi nama penuh dan fakulti anda, kemudian tandakan kotak persetujuan.', 'Fill in your full name and faculty, then tick the consent box.'],
+    ['Imbas kod bar atau ketik gambar setiap barang yang anda ambil.', 'Scan the barcode or tap the photo of each item you take.'],
+    ['Tekan Selesai.', 'Press Done.'],
+  ];
+  const POSTER_PRIVACY = [
+    'Privasi: Kami merekod ID pelajar, nama, fakulti dan barang yang anda ambil supaya rekod tepat dan Bahagian Hal Ehwal Pelajar (HEP) boleh menghubungi anda jika anda memerlukan bantuan lanjut. Rekod disimpan 1 tahun selepas lawatan terakhir anda dan hanya staf yang dibenarkan boleh melihatnya.',
+    'Privacy: We record your student ID, name, faculty and the items you take, to keep accurate records and so Student Affairs (HEP) can contact you if you need more help. Records are kept for 1 year after your last visit and only authorised staff can see them.',
+  ];
+
+  function posterSheet(poster) {
+    return el('section', { class: 'sheet poster' },
+      el('header', null,
+        el('p', { class: 'poster-brand' }, 'Food Bank URHP'),
+        el('h1', { class: 'poster-pantry' }, poster.name),
+        el('p', { class: 'poster-tag' }, 'Ambil apa yang anda perlukan', el('span', { class: 'en' }, 'Take what you need'))),
+      el('div', { class: 'poster-qr' },
+        qrSvg(poster.modules, 'Kod QR / QR code: ' + poster.url),
+        el('p', { class: 'poster-scan' }, el('b', null, 'Imbas untuk mula'), ' · Scan to start'),
+        el('p', { class: 'poster-url' }, poster.url)),
+      el('ol', { class: 'poster-steps' }, POSTER_STEPS.map((step) => el('li', null, el('b', null, step[0]), el('span', { class: 'en' }, step[1])))),
+      el('p', { class: 'poster-note' }, 'Tiada sambungan internet? Gunakan peranti pantri.', el('span', { class: 'en' }, 'No internet connection? Use the pantry device.')),
+      el('footer', { class: 'poster-privacy' }, el('p', null, POSTER_PRIVACY[0]), el('p', null, POSTER_PRIVACY[1])));
+  }
+
+  function renderPosters() {
+    const sheets = el('div', { class: 'sheets' }, el('p', { class: 'muted no-print' }, 'Loading…'));
+    const pick = el('select', { 'aria-label': 'Pantry' });
+    const tools = printTools('QR posters',
+      'One A4 page per active pantry. Each code opens the student app for that pantry, so visits are recorded at the right place.',
+      el('div', { class: 'row' }, field('Pantry', pick)));
+    tools.print.disabled = true;
+    view.replaceChildren(tools.node, sheets);
+    act(null, async () => {
+      const posters = await call('adminQrPosters');
+      if (!posters.length) return sheets.replaceChildren(el('p', null, 'No active pantries. Add one under Setup, Locations.'));
+      pick.replaceChildren(el('option', { value: '' }, 'All pantries (' + posters.length + ')'),
+        ...posters.map((p) => el('option', { value: p.location_id }, p.name)));
+      const draw = () => sheets.replaceChildren(...posters.filter((p) => !pick.value || p.location_id === pick.value).map(posterSheet));
+      pick.addEventListener('change', draw);
+      draw();
+      tools.print.disabled = false;
+    });
+  }
+
+  const LABELS_PER_PAGE = 24; // 3 across, 8 down
+
+  function renderLabels() {
+    const sheets = el('div', { class: 'sheets' });
+    const picker = el('div', null, el('p', { class: 'muted' }, 'Loading…'));
+    const summary = el('p', { class: 'muted' });
+    const tools = printTools('Barcode labels',
+      'Each label carries the item\'s internal code (NB-…) as a Code 128 barcode, which the USB scanner and phone cameras read as that item. Items with no barcode of their own are ticked. 24 labels per A4 page; cut along the dashed lines.',
+      picker, summary);
+    tools.print.disabled = true;
+    view.replaceChildren(tools.node, sheets);
+    act(null, async () => {
+      const bars = await call('staffItemLabels');
+      const linked = (id) => state.data.barcodes.some((b) => b.item_id === id);
+      const rows = allItems().filter((item) => bars[item.item_id]).map((item) => ({
+        item: item,
+        tick: el('input', { type: 'checkbox', checked: item.active && !linked(item.item_id), 'aria-label': 'Print labels for ' + item.name }),
+        copies: el('input', { class: 'qty', type: 'number', min: '1', max: '100', step: '1', value: '1', inputmode: 'numeric', 'aria-label': 'Labels for ' + item.name }),
+      }));
+      if (!rows.length) return picker.replaceChildren(el('p', null, 'No items yet. Add them under Items.'));
+
+      function draw() {
+        const labels = [];
+        rows.forEach((r) => {
+          if (!r.tick.checked) return;
+          const copies = Math.max(1, Math.min(100, Math.floor(Number(r.copies.value)) || 1));
+          for (let i = 0; i < copies; i++) labels.push(r.item);
+        });
+        const pages = [];
+        for (let i = 0; i < labels.length; i += LABELS_PER_PAGE) pages.push(labels.slice(i, i + LABELS_PER_PAGE));
+        sheets.replaceChildren(...pages.map((page) => el('section', { class: 'sheet labels' }, page.map((item) =>
+          el('div', { class: 'label' },
+            el('span', { class: 'label-name' }, item.name),
+            barsSvg(bars[item.item_id], item.item_id),
+            el('span', { class: 'label-code' }, item.item_id))))));
+        summary.textContent = labels.length
+          ? labels.length + ' label(s) on ' + pages.length + ' page(s).'
+          : 'Tick at least one item.';
+        tools.print.disabled = !labels.length;
+      }
+      const tickAll = (on) => () => { rows.forEach((r) => { r.tick.checked = on; }); draw(); };
+      rows.forEach((r) => {
+        r.tick.addEventListener('change', draw);
+        r.copies.addEventListener('input', draw);
+      });
+      picker.replaceChildren(
+        table(['', 'Item', { label: 'Own barcodes', num: true }, { label: 'Labels', num: true }], rows.map((r) => el('tr', null,
+          el('td', null, r.tick),
+          el('td', null, r.item.name, el('div', { class: 'muted' }, r.item.item_id + (r.item.active ? '' : ' · inactive'))),
+          el('td', { class: 'num' }, String(state.data.barcodes.filter((b) => b.item_id === r.item.item_id).length)),
+          el('td', { class: 'num' }, r.copies)))),
+        el('div', { class: 'actions' },
+          el('button', { class: 'secondary', onclick: tickAll(true) }, 'Tick all'),
+          el('button', { class: 'secondary', onclick: tickAll(false) }, 'Untick all')));
+      draw();
+    });
   }
 
   // ---------- Start ----------

@@ -105,4 +105,65 @@
   #toast.show { opacity: 1; transform: none; }
   #toast.error { background: var(--danger); }
   textarea.csv { width: 100%; min-height: 200px; font: 13px ui-monospace, Menlo, monospace; }
+
+  /* Print views: A4 sheets at real size. On screen each sheet shows its 12 mm page margin as padding. */
+  @page { size: A4; margin: 12mm; }
+  .sheets { overflow-x: auto; padding: 8px 0; }
+  .sheet {
+    width: 210mm; height: 297mm; padding: 12mm; margin: 0 auto 16px; overflow: hidden;
+    background: #fff; color: #000; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+  }
+  .sheet .en { display: block; color: #444; font-weight: normal; font-size: 0.8em; }
+  /* Narrow screens: shrink the preview to fit. Printing always uses the real size. */
+  @media screen and (max-width: 840px) { .sheet { zoom: 0.7; } }
+  @media screen and (max-width: 600px) { .sheet { zoom: 0.42; } }
+
+  .poster { display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; }
+  .poster p { margin: 0; }
+  .poster-brand { font-size: 16pt; font-weight: 600; letter-spacing: 0.04em; }
+  .poster-pantry { margin: 1mm 0 2mm; font-size: 40pt; line-height: 1.1; }
+  .poster-tag { font-size: 16pt; }
+  .poster-qr svg { display: block; width: 88mm; height: 88mm; margin: 0 auto 2mm; }
+  .poster-scan { font-size: 18pt; }
+  .poster-url { margin-top: 1mm; font: 10pt ui-monospace, Menlo, monospace; word-break: break-all; color: #333; }
+  .poster-steps { list-style: none; counter-reset: step; width: 100%; margin: 0; padding: 0; text-align: left; }
+  .poster-steps li {
+    counter-increment: step; display: grid; grid-template-columns: 10mm 1fr; column-gap: 4mm; align-items: center;
+    margin: 2.5mm 0; font-size: 14pt; line-height: 1.25;
+  }
+  .poster-steps li::before {
+    content: counter(step); grid-row: span 2; display: flex; align-items: center; justify-content: center;
+    width: 10mm; height: 10mm; border: 0.6mm solid #0b5cad; border-radius: 50%; color: #0b5cad; font-weight: 700;
+  }
+  .poster-steps li > * { grid-column: 2; }
+  .poster-note { font-size: 13pt; }
+  .poster-privacy { width: 100%; padding-top: 3mm; border-top: 0.3mm solid #999; text-align: left; font-size: 8.5pt; line-height: 1.35; color: #333; }
+  .poster-privacy p + p { margin-top: 1.5mm; }
+
+  .labels {
+    display: grid; grid-template-columns: repeat(3, 62mm); grid-template-rows: repeat(8, 34mm); align-content: start;
+    border-top: 0.2mm dashed #999; border-left: 0.2mm dashed #999;
+  }
+  .label {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1mm;
+    padding: 2mm 3mm; overflow: hidden; text-align: center;
+    border-right: 0.2mm dashed #999; border-bottom: 0.2mm dashed #999;
+  }
+  .label-name {
+    font-size: 10pt; font-weight: 600; line-height: 1.2; max-width: 100%; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .label svg { display: block; flex: none; }
+  .label-code { font: 600 9pt ui-monospace, Menlo, monospace; letter-spacing: 0.08em; }
+
+  @media print {
+    body { background: #fff; }
+    .bar, nav, #toast, .no-print { display: none !important; }
+    main { max-width: none; padding: 0; }
+    .sheets { overflow: visible; padding: 0; }
+    /* The page margin replaces the padding. 1 mm short of the page so rounding never adds a blank page. */
+    .sheet { width: auto; height: 272mm; padding: 0; margin: 0; box-shadow: none; break-after: page; }
+    .sheet:last-child { break-after: auto; }
+    .sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>

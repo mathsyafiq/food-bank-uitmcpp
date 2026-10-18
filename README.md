@@ -8,7 +8,7 @@ Inventory and self-service checkout for the UiTM food bank. Students record what
 | Staff app | [Staff web app](https://script.google.com/macros/s/AKfycbyDrHlZgISTgVhhI35MW-KOwnAXkks10Wj-9AZJ77ahIYO5EViH4ahiR2IYZ6nBTcsj/exec) (UiTM sign-in) | People listed in the Staff tab |
 | Database | Google Sheet "Food Bank URHP – Database" in the Drive folder "Food Bank URHP" | Owner and admins only |
 
-Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [docs/DECISIONS.md](docs/DECISIONS.md).
+Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [docs/DECISIONS.md](docs/DECISIONS.md). Data handling: [docs/DATA-POLICY.md](docs/DATA-POLICY.md).
 
 ## First-time setup
 
@@ -19,10 +19,10 @@ Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [doc
    - Add the faculties students choose from (code, BM name, English name). "Lain-lain / Other" is there to start.
    - Check the settings, especially **Student ID format** (default: 10 digits).
 4. **Staff tab (admins):** add each staff member's UiTM email. Tick "Receives stock alert emails" for anyone who should get alerts.
-5. **Items tab:** add each item with a photo, link its barcodes (scan them with the USB scanner), and set low-stock thresholds per location. Items without a barcode can be tapped on screen, or printed as a label with their internal code (NB-001 and so on).
+5. **Items tab:** add each item with a photo, link its barcodes (scan them with the USB scanner), and set low-stock thresholds per location. Items without a barcode can be tapped on screen, or labelled with their internal code (NB-001 and so on): **Print barcode labels** on the Items tab prints a sheet of 24 labels per A4 page.
 6. **Receive tab:** record the first delivery into the Central Store, then use **Transfer** to move stock to Pantri 1.
 7. **Pantry laptop:** open the student app link, scroll down, tap "Pantry device setup", and enter the code from the staff app's **Devices** tab. Do the same for any pantry-owned phone.
-8. **QR poster:** for students' own phones, the poster should link to `https://mathsyafiq.github.io/food-bank-urhp/?p=P1` (use `P2` for Pantri 2).
+8. **QR posters (admins):** Setup > Print > **QR posters** prints one A4 poster per active pantry for students' own phones. Each code links to the student app for that pantry, for example `https://mathsyafiq.github.io/food-bank-urhp/?p=P1`. When printing posters or labels, choose A4, scale 100% (Actual size), and turn off headers and footers.
 
 ## Everyday use
 
@@ -37,6 +37,7 @@ Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [doc
 - Visits and the stock ledger refer to students only by a keyed hash. The key lives in the script's properties, never in the Sheet, the app or this repo.
 - Admins can export the student list for Student Affairs (HEP). Every look-up and export is logged in the AuditLog tab.
 - Never commit rosters, exports or real student IDs to this repo (it is public).
+- The full policy, including retention, HEP exports and what to do if data leaks, is in [docs/DATA-POLICY.md](docs/DATA-POLICY.md). It is a draft until UiTM's legal office and ICT division confirm the items it lists.
 
 ## For developers
 

@@ -47,8 +47,16 @@ Approved on 2026-10-19 when the owner approved the plan and asked to build it.
 | 19 | Barcodes are stored in a `code` column (not `gtin`), because some codes are UPC-E or internal labels rather than GTINs. `appsscript.json` sits at the repo root, as clasp requires. | Accuracy and tooling. |
 | 20 | Pantry devices show the thank-you screen as soon as a visit is saved on the device, then send it in the background. | Students never wait for Apps Script. |
 
+## 2026-10-19: QR posters, barcode labels and data policy (deliverables 8 and 9)
+
+| # | Decision | Why |
+|---|---|---|
+| 21 | The QR and Code 128 encoders are written for this project (`core/qr.js`, `core/code128.js`), not taken from a library. Tests match every QR version and level module for module against the bundled ZXing encoder, and read both kinds of code back with ZXing. | No npm packages or CDNs (decision 17). Both formats are small enough to write and test completely. |
+| 22 | QR posters: one A4 page per active pantry, printed by admins from Setup. The code links to the `pwa_url` setting with `?p=<location_id>` and uses error correction level Q, so up to a quarter of it can be scuffed or taped over. | Posters live on walls. Level Q still fits the link in a 37 × 37 code. |
+| 23 | Barcode labels: Code 128 of the item's internal code (NB-001), 24 per A4 page (3 × 8 cells of 62 × 34 mm, cut along dashed lines), chosen on the Items page. Items with no barcode of their own are ticked by default. | The USB scanner and phone cameras already read Code 128, and the student app already looks up NB- codes. Plain paper works. |
+| 24 | `docs/DATA-POLICY.md` is a bilingual draft. Its "to confirm" items go to UiTM's legal office, ICT division and HEP before it is final. | The owner cannot settle these alone. |
+
 ## Deferred
 
 - **DailySummary tab and yearly archive** (PLAN 5.6): not needed until the ledger grows. Reports read the ledger by date slice for now. Build before the first year ends.
 - **Roster import:** waits for the Assistant Registrar. `student_mode = ROSTER` and the roster check are already in the code; the import screen is not.
-- **QR poster and barcode labels** (deliverable 8) and the **data handling policy document** (deliverable 9).

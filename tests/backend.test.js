@@ -292,3 +292,39 @@ test('reports return the date range, and CSV export works', () => {
   assert.match(app.fn('staffReportCsv')('visits', { from: today, to: today }).csv, /^visit_id,occurred_at/);
   assert.throws(() => app.fn('staffTransactionsReport')({ from: 'yesterday', to: today }), /valid date range/);
 });
+
+test('QR posters: one per active pantry, admins only, and each code reads back as its pantry link', () => {
+  const { readQr } = require('./support/zxing.js');
+  const app = seeded();
+  app.db.tables.Locations.push({ location_id: 'P3', name: 'Closed pantry', type: 'PANTRY', active: false });
+  app.user.email = 'admin@uitm.edu.my';
+  const posters = app.fn('adminQrPosters')();
+  assert.deepEqual(posters.map((p) => [p.location_id, p.name, p.url]), [
+    ['P1', 'Pantri 1', 'https://mathsyafiq.github.io/food-bank-urhp/?p=P1'],
+    ['P2', 'Pantri 2', 'https://mathsyafiq.github.io/food-bank-urhp/?p=P2'],
+  ]);
+  const modules = posters[0].modules.map((row) => row.split('').map((c) => c === '1'));
+  assert.equal(readQr(modules).text, posters[0].url);
+  app.user.email = 'staff@uitm.edu.my';
+  assert.throws(() => app.fn('adminQrPosters')(), /Only an admin/);
+});
+
+test('the pantry link keeps other query values and replaces an old pantry ID', () => {
+  const app = seeded();
+  const link = app.fn('pantryLink_');
+  assert.equal(link('https://example.edu.my/app/', 'P2'), 'https://example.edu.my/app/?p=P2');
+  assert.equal(link('http://localhost:8090/?p=P1', 'P2'), 'http://localhost:8090/?p=P2');
+  assert.equal(link('https://example.edu.my/?lang=ms&p=P1#top', 'P2'), 'https://example.edu.my/?lang=ms&p=P2');
+});
+
+test('barcode labels cover every internal item code and scan back as that item', () => {
+  const { readCode128 } = require('./support/zxing.js');
+  const app = seeded();
+  app.db.tables.Items.push({ item_id: 'X-1', name: 'Hand-typed ID', active: true });
+  app.user.email = 'staff@uitm.edu.my';
+  const labels = app.fn('staffItemLabels')();
+  assert.deepEqual(Object.keys(labels), ['NB-001', 'NB-002']);
+  assert.equal(readCode128(labels['NB-002']), 'NB-002');
+  app.user.email = 'stranger@uitm.edu.my';
+  assert.throws(() => app.fn('staffItemLabels')(), /does not have staff access/);
+});
