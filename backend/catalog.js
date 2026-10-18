@@ -104,6 +104,12 @@ function nextItemId_() {
   return 'NB-' + String(max + 1).padStart(3, '0');
 }
 
+/** A category or unit must come from its list. Blank is fine, and so is the item's old value after a list changes. */
+function checkChoice_(value, listText, current) {
+  if (value === '' || value === String(current == null ? '' : current)) return;
+  if (listSetting_(listText).indexOf(value) < 0) throw new ApiError('CHOICE_INVALID');
+}
+
 function staffSaveItem(form) {
   return staffCall_('staff', (me) => {
     form = form || {};
@@ -112,19 +118,25 @@ function staffSaveItem(form) {
     const fields = {
       name: name,
       category: safeText_(form.category, 40),
-      unit: safeText_(form.unit, 20),
+      unit: safeText_(form.unit, 30),
       sort_order: form.sort_order === '' || form.sort_order == null ? '' : wholeNumber_(form.sort_order, 0, 9999, 'BAD_REQUEST'),
       active: form.active !== false,
     };
+    const settings = getSettings_();
     return Db.withLock(() => {
       const now = new Date();
       if (form.item_id) {
         const row = Db.findRow('Items', 'item_id', String(form.item_id));
         if (!row) throw new ApiError('ITEM_NOT_FOUND');
-        const item = Object.assign(Db.readRow('Items', row), fields, { updated_at: now });
+        const current = Db.readRow('Items', row);
+        checkChoice_(fields.category, settings.item_categories, current.category);
+        checkChoice_(fields.unit, settings.item_units, current.unit);
+        const item = Object.assign(current, fields, { updated_at: now });
         Db.writeRow('Items', item);
         return { item_id: String(item.item_id) };
       }
+      checkChoice_(fields.category, settings.item_categories, '');
+      checkChoice_(fields.unit, settings.item_units, '');
       const item = Object.assign({ item_id: nextItemId_(), photo_version: '', created_at: now, updated_at: now }, fields);
       Db.append('Items', [item]);
       audit_(me, 'item_add', item.item_id + ' ' + name);

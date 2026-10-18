@@ -56,6 +56,14 @@ Approved on 2026-10-19 when the owner approved the plan and asked to build it.
 | 23 | Barcode labels: Code 128 of the item's internal code (NB-001), 24 per A4 page (3 × 8 cells of 62 × 34 mm, cut along dashed lines), chosen on the Items page. Items with no barcode of their own are ticked by default. | The USB scanner and phone cameras already read Code 128, and the student app already looks up NB- codes. Plain paper works. |
 | 24 | `docs/DATA-POLICY.md` is a bilingual draft. Its "to confirm" items go to UiTM's legal office, ICT division and HEP before it is final. | The owner cannot settle these alone. |
 
+## 2026-10-19: Items page changes requested by the owner
+
+| # | Decision | Why |
+|---|---|---|
+| 25 | Category and unit are drop-downs. The choices are two comma-separated settings (`item_categories`, `item_units`) that admins edit on Setup. Starting values: Makanan, Minuman, Kebersihan diri, Lain-lain; pek, bungkus, botol, tin, kotak, kg, unit. An item keeps a value removed from a list later. | Owner asked for drop-downs. Consistent names make reports and grouping reliable. |
+| 26 | "Sort order" is labelled "Position on the students' screen": 1 shows first; blank items follow in A–Z order. | The old label did not say what it controlled. |
+| 27 | Staff can photograph a barcode on a phone and have the digits read and linked automatically, using the phone's built-in reader or the student app's ZXing file. On a laptop the USB scanner types into the barcode box as before. | Staff pages run inside Google's frame, where live camera scanning is uncertain; reading a still photo needs no camera permission. Lets one person register a whole item on a phone. |
+
 ## Deferred
 
 - **DailySummary tab and yearly archive** (PLAN 5.6): not needed until the ledger grows. Reports read the ledger by date slice for now. Build before the first year ends.

@@ -379,7 +379,7 @@
     });
     view.append(
       el('h2', null, 'Items'),
-      el('p', { class: 'muted' }, 'Students see active items in this order (lowest sort number first). Every item has an internal code (NB-…) that can be printed as a barcode label.'),
+      el('p', { class: 'muted' }, 'Students see active items in this order: by position number (1 first), then A–Z for items without one. Every item has an internal code (NB-…) that can be printed as a barcode label.'),
       el('div', { class: 'actions' }, add, labels),
       rows.length ? table(['', 'Item', { label: 'Barcodes', num: true }, 'Status', ''], rows) : el('p', null, 'No items yet.'));
     // Fills in this list's own thumbnails, so it is harmless if staff have already moved on to another view.
@@ -389,13 +389,104 @@
     });
   }
 
+  /** A drop-down from an admin-managed list. A value since removed from the list stays selectable on old items. */
+  function choiceSelect(list, current) {
+    const options = [el('option', { value: '' }, '(none)')];
+    list.forEach((value) => options.push(el('option', { value: value, selected: value === current }, value)));
+    if (current && list.indexOf(current) < 0) {
+      options.push(el('option', { value: current, selected: true }, current + ' (no longer in the list)'));
+    }
+    return el('select', null, options);
+  }
+
+  let zxingLoading = null;
+
+  /** The barcode library, loaded from the student app's site: the same file the student app uses on iPhones. */
+  function loadZxing() {
+    if (window.ZXing) return Promise.resolve(window.ZXing);
+    if (!zxingLoading) {
+      const base = new URL(state.data.settings.pwa_url || location.href);
+      if (!base.pathname.endsWith('/')) base.pathname += '/';
+      base.search = '';
+      zxingLoading = new Promise((resolve, reject) => {
+        const script = el('script', { src: new URL('vendor/zxing-0.21.3.min.js', base).href });
+        script.onload = () => resolve(window.ZXing);
+        script.onerror = () => {
+          zxingLoading = null;
+          reject(new Error('The barcode reader could not load. Check the connection, or type the digits instead.'));
+        };
+        document.head.append(script);
+      });
+    }
+    return zxingLoading;
+  }
+
+  /** Reads an EAN, UPC or Code 128 barcode from a photo. Returns its digits, or null if none was found. */
+  async function readBarcodeFromPhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      if ('BarcodeDetector' in window) { // Android Chrome has a built-in reader.
+        try {
+          const found = await new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] }).detect(img);
+          if (found.length) return found[0].rawValue;
+        } catch (err) {
+          // Fall back to ZXing below.
+        }
+      }
+      const ZX = await loadZxing();
+      const hints = new Map();
+      hints.set(ZX.DecodeHintType.POSSIBLE_FORMATS, [
+        ZX.BarcodeFormat.EAN_13, ZX.BarcodeFormat.EAN_8, ZX.BarcodeFormat.UPC_A, ZX.BarcodeFormat.UPC_E, ZX.BarcodeFormat.CODE_128,
+      ]);
+      hints.set(ZX.DecodeHintType.TRY_HARDER, true);
+      const reader = new ZX.MultiFormatReader();
+      reader.setHints(hints);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      // Try two sizes, and the photo turned a quarter, in case the barcode was photographed on its side.
+      for (const size of [1600, 1000]) {
+        for (const turned of [false, true]) {
+          const scale = Math.min(1, size / Math.max(img.naturalWidth, img.naturalHeight));
+          const w = Math.round(img.naturalWidth * scale);
+          const h = Math.round(img.naturalHeight * scale);
+          canvas.width = turned ? h : w;
+          canvas.height = turned ? w : h;
+          ctx.save();
+          if (turned) {
+            ctx.translate(h, 0);
+            ctx.rotate(Math.PI / 2);
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+          ctx.restore();
+          const rgba = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          const luminance = new Uint8ClampedArray(canvas.width * canvas.height);
+          for (let i = 0, j = 0; i < rgba.length; i += 4, j++) luminance[j] = (rgba[i] * 77 + rgba[i + 1] * 150 + rgba[i + 2] * 29) >> 8;
+          try {
+            const source = new ZX.RGBLuminanceSource(luminance, canvas.width, canvas.height);
+            return reader.decode(new ZX.BinaryBitmap(new ZX.HybridBinarizer(source))).getText();
+          } catch (err) {
+            // Not found at this size or angle.
+          } finally {
+            reader.reset();
+          }
+        }
+      }
+      return null;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
   function editItem(itemId) {
     const item = itemId ? itemById(itemId) : { name: '', category: '', unit: '', sort_order: '', active: true };
     view.replaceChildren();
     const name = el('input', { value: item.name, maxlength: '80', required: true });
-    const category = el('input', { value: item.category, maxlength: '40', placeholder: 'e.g. Staples, Drinks, Toiletries' });
-    const unit = el('input', { value: item.unit, maxlength: '20', placeholder: 'e.g. pack, bottle, can' });
-    const sort = el('input', { type: 'number', min: '0', step: '1', value: item.sort_order === '' ? '' : String(item.sort_order) });
+    const category = choiceSelect(state.data.item_categories, item.category);
+    const unit = choiceSelect(state.data.item_units, item.unit);
+    const sort = el('input', { type: 'number', min: '1', step: '1', placeholder: 'Blank: A–Z after numbered items', value: item.sort_order === '' ? '' : String(item.sort_order) });
     const active = el('input', { type: 'checkbox', checked: item.active });
     const save = el('button', { class: 'primary' }, itemId ? 'Save changes' : 'Add item');
     save.addEventListener('click', () => act(save, async () => {
@@ -410,7 +501,10 @@
       el('div', { class: 'actions' }, el('button', { class: 'secondary', onclick: () => show('items') }, '← All items')),
       el('h2', null, itemId ? item.name : 'New item'),
       el('div', { class: 'card' },
-        el('div', { class: 'row' }, field('Name (shown to students)', name), field('Category', category), field('Unit', unit), field('Sort order', sort)),
+        el('div', { class: 'row' }, field('Name (shown to students)', name), field('Category', category), field('Unit (shown to students)', unit)),
+        el('div', { class: 'row' }, field('Position on the students\' screen', sort,
+          '1 shows first, 2 second, and so on. Items left blank come after the numbered ones, in A–Z order.')),
+        el('p', { class: 'muted' }, isAdmin() ? 'Change the category and unit lists on the Setup page.' : 'Need another category or unit? Ask an admin to add it on the Setup page.'),
         el('label', { class: 'check' }, active, 'Active (shown to students)'),
         el('div', { class: 'actions' }, save)));
     if (!itemId) return;
@@ -436,8 +530,8 @@
       toast('Photo removed.');
     }));
     view.append(el('div', { class: 'card' }, el('h3', null, 'Photo'), preview,
-      el('p', { class: 'muted' }, 'Square photos work best. It is shrunk to a small size before saving.'),
-      el('div', { class: 'row' }, field('Choose or take a photo', file)), el('div', { class: 'actions' }, removePhoto)));
+      el('p', { class: 'muted' }, 'On a phone this opens the camera, so you can photograph the item there and then. On a laptop it picks a photo file already on the laptop. Square photos work best; they are shrunk before saving.'),
+      el('div', { class: 'row' }, field('Take or choose a photo', file)), el('div', { class: 'actions' }, removePhoto)));
     loadPhotos([itemId]).then(() => { if (state.photos[itemId]) preview.src = state.photos[itemId].data; }).catch(() => {});
 
     // Barcodes
@@ -453,6 +547,21 @@
     });
     link.addEventListener('click', doLink);
     codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doLink(); } });
+    // Phones: photograph the barcode and read the digits from the picture, so nobody has to type them.
+    const snapFile = el('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true });
+    const snap = el('button', { class: 'secondary' }, 'Take a photo of the barcode');
+    snap.addEventListener('click', () => snapFile.click());
+    snapFile.addEventListener('change', () => act(snap, async () => {
+      const photo = snapFile.files[0];
+      snapFile.value = '';
+      if (!photo) return;
+      const code = await readBarcodeFromPhoto(photo);
+      if (!code) {
+        throw new Error('No barcode found in that photo. Hold the phone 10–15 cm away so the barcode fills most of the picture, keep it in focus, and try again.');
+      }
+      codeInput.value = code;
+      await doLink();
+    }));
     view.append(el('div', { class: 'card' }, el('h3', null, 'Barcodes'),
       el('p', { class: 'muted' }, 'Link every brand that should count as this item. Internal code for labels: ', el('b', null, itemId)),
       codes.length ? table(['Code', ''], codes.map((b) => el('tr', null, el('td', null, b.code), el('td', null,
@@ -462,7 +571,8 @@
           await reload();
           editItem(itemId);
         }) }, 'Unlink'))))) : el('p', null, 'No barcodes linked yet.'),
-      el('div', { class: 'row' }, field('Barcode', codeInput)), el('div', { class: 'actions' }, link)));
+      el('div', { class: 'row' }, field('Barcode', codeInput)), el('div', { class: 'actions' }, link, snap, snapFile),
+      el('p', { class: 'muted' }, 'Laptop: click the box and scan with the USB scanner. Phone: tap "Take a photo of the barcode"; the digits are read and linked for you.')));
 
     // Thresholds
     const defaultThreshold = state.data.settings.default_threshold;
@@ -709,6 +819,8 @@
     public_submits_per_minute: ['Student-phone visits per minute (limit)', 'Slows scripted spam. Far above real traffic.'],
     pwa_url: ['Student app link', 'Shown on the Devices page and printed on the QR poster.'],
     staff_url: ['Staff app link', 'Added to alert emails.'],
+    item_categories: ['Item categories', 'The Category drop-down on the Items page. Separate with commas.'],
+    item_units: ['Item units', 'The Unit drop-down on the Items page, shown to students under the item name. Separate with commas.'],
   };
 
   function renderSetup() {
@@ -762,7 +874,7 @@
       const value = String(state.data.settings[key] === undefined ? '' : state.data.settings[key]);
       inputs[key] = key === 'student_mode'
         ? el('select', null, ['SELF', 'ROSTER'].map((m) => el('option', { value: m, selected: value === m }, m)))
-        : el('input', { value: value, type: /url/.test(key) ? 'url' : /pattern/.test(key) ? 'text' : 'number' });
+        : el('input', { value: value, type: /url/.test(key) ? 'url' : /pattern|^item_/.test(key) ? 'text' : 'number' });
       return field(SETTING_LABELS[key][0], inputs[key], SETTING_LABELS[key][1]);
     });
     const saveSettings = el('button', { class: 'primary' }, 'Save settings');

@@ -13,7 +13,16 @@ const DEFAULT_SETTINGS = {
   public_submits_per_minute: 60,
   pwa_url: '',
   staff_url: '',
+  // Choices for the Items drop-downs, separated by commas. Admins edit them on the staff Setup page.
+  item_categories: 'Makanan, Minuman, Kebersihan diri, Lain-lain',
+  item_units: 'pek, bungkus, botol, tin, kotak, kg, unit',
 };
+
+/** "a, b, c" -> ["a", "b", "c"], trimmed, without blanks or repeats. */
+function listSetting_(value) {
+  const items = String(value == null ? '' : value).split(',').map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  return items.filter((s, i) => items.indexOf(s) === i);
+}
 
 const SETTING_LIMITS = {
   retention_days: [30, 3650],
@@ -41,6 +50,10 @@ function validSetting_(key, value) {
     }
   }
   if (key === 'pwa_url' || key === 'staff_url') return value === '' || /^https:\/\/\S+$/.test(value);
+  if (key === 'item_categories' || key === 'item_units') {
+    const items = listSetting_(value);
+    return items.length >= 1 && items.length <= 40 && items.every((s) => s.length <= 30 && !/^[=+\-@]/.test(s));
+  }
   return true;
 }
 

@@ -34,6 +34,7 @@ const MESSAGES = {
   SAME_LOCATION: ['Lokasi asal dan destinasi sama.', 'The from and to locations must be different.'],
   ITEM_NOT_FOUND: ['Barang tidak ditemui.', 'Item not found.'],
   NAME_INVALID: ['Nama tidak sah.', 'Enter a name of at least 2 characters.'],
+  CHOICE_INVALID: ['Pilihan tidak sah.', 'Choose the category and unit from the lists. Admins can change the lists on the Setup page.'],
   BARCODE_INVALID: ['Kod bar tidak sah.', 'That barcode is not valid. Scan it again or check the digits.'],
   BARCODE_TAKEN: ['Kod bar sudah dipautkan kepada barang lain.', 'That barcode is already linked to another item.'],
   PHOTO_INVALID: ['Gambar tidak sah atau terlalu besar.', 'The photo is not valid or too large.'],

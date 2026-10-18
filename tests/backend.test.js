@@ -263,7 +263,7 @@ test('an admin can look up a student and export the list for HEP, and it is audi
 test('items get the next NB code; barcodes link once and clear the unknown list', () => {
   const app = seeded();
   app.user.email = 'staff@uitm.edu.my';
-  assert.equal(app.fn('staffSaveItem')({ name: 'Sugar', category: 'Staples', unit: 'pack', sort_order: '', active: true }).item_id, 'NB-003');
+  assert.equal(app.fn('staffSaveItem')({ name: 'Sugar', category: 'Makanan', unit: 'pek', sort_order: '', active: true }).item_id, 'NB-003');
   app.db.tables.UnknownBarcodes.push({ code: '04006381333931', times_seen: 2 });
   assert.equal(app.fn('staffLinkBarcode')('4006381333931', 'NB-003').code, '04006381333931');
   assert.equal(app.db.tables.UnknownBarcodes.length, 0);

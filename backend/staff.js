@@ -35,6 +35,8 @@ function staffBootstrap() {
         large_qty_threshold: settings.large_qty_threshold,
         pwa_url: settings.pwa_url,
       },
+      item_categories: listSetting_(settings.item_categories),
+      item_units: listSetting_(settings.item_units),
       locations: Db.read('Locations').map((l) => ({
         location_id: String(l.location_id), name: String(l.name), type: String(l.type), active: truthy_(l.active),
       })),
