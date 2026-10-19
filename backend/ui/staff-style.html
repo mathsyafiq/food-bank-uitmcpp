@@ -202,6 +202,77 @@
     button.primary:active, button.secondary:active, button.danger:active, nav button:active { transform: none; }
   }
 
+  /* ---------- Reports dashboard: IBM Carbon Design System (docs/DECISIONS.md 36) ----------
+     Carbon's own classes come from backend/ui/staff-carbon.html; this is only the page layout, in Carbon's
+     8 px spacing scale and type scale, using Carbon tokens. The zone class (cds--g10 / cds--g100) sets them. */
+  .cds-scope {
+    --dash-series: #6929c4; /* Carbon Purple 70: first data-visualisation colour, light themes */
+    margin: 0 -16px;
+    padding: 24px 16px 48px;
+    background: var(--cds-background, #f4f4f4);
+    color: var(--cds-text-primary, #161616);
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cds-scope.cds--g10 { color-scheme: light; }
+  .cds-scope.cds--g100 { --dash-series: #8a3ffc; color-scheme: dark; } /* Purple 60 on dark; dark native date icons */
+  /* The app's own rounded fields must not leak into Carbon's square ones. */
+  .cds-scope .cds--text-input, .cds-scope .cds--select-input { border-radius: 0; box-shadow: none; }
+  .dash-loading { margin: 0; color: var(--cds-text-secondary); }
+  .cds-scope .dash-title { margin: 0 0 4px; font-size: 28px; line-height: 36px; font-weight: 400; letter-spacing: 0; }
+  .dash-subtitle { margin: 0 0 24px; font-size: 14px; line-height: 20px; letter-spacing: 0.16px; color: var(--cds-text-secondary); }
+  .dash-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; margin: 24px 0; }
+  .dash-toolbar > .cds--form-item { flex: 0 1 184px; }
+  .dash-actions { display: flex; flex-wrap: wrap; gap: 1px; margin-left: auto; }
+  .dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(176px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .dash-kpi { display: flex; flex-direction: column; min-height: 136px; }
+  .dash-kpi__label { margin: 0; font-size: 14px; line-height: 18px; letter-spacing: 0.16px; color: var(--cds-text-secondary); }
+  .dash-kpi__value { margin: auto 0 0; padding-top: 16px; font-size: 42px; line-height: 50px; font-weight: 300; letter-spacing: 0; }
+  .dash-kpi__note { margin: 4px 0 0; font-size: 12px; line-height: 16px; letter-spacing: 0.32px; color: var(--cds-text-helper); }
+  .dash-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
+  .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; } .span-8 { grid-column: span 8; } .span-12 { grid-column: span 12; }
+  @media (max-width: 1000px) { .span-4, .span-6, .span-8 { grid-column: span 12; } }
+  .dash-card { display: flex; flex-direction: column; min-width: 0; }
+  .cds-scope .dash-card__title { margin: 0; font-size: 16px; line-height: 22px; font-weight: 600; letter-spacing: 0; }
+  .dash-card__subtitle { margin: 2px 0 16px; font-size: 12px; line-height: 16px; letter-spacing: 0.32px; color: var(--cds-text-secondary); }
+  .dash-chart { position: relative; }
+  .dash-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .dash-chart .grid line { stroke: var(--cds-border-subtle-01); stroke-width: 1; shape-rendering: crispEdges; }
+  .dash-chart .tick { fill: var(--cds-text-secondary); font-size: 12px; font-family: inherit; }
+  .dash-chart .dash-col { fill: var(--dash-series); }
+  .dash-chart .hit { fill: transparent; outline: none; }
+  .dash-chart .hit:hover, .dash-chart .hit:focus { fill: var(--cds-layer-hover-01); fill-opacity: 0.5; }
+  .dash-chart .hit:focus-visible { stroke: var(--cds-focus); stroke-width: 2; }
+  .dash-tooltip {
+    position: absolute; z-index: 2; padding: 4px 8px; pointer-events: none; white-space: nowrap;
+    background: var(--cds-background-inverse); color: var(--cds-text-inverse); font-size: 12px; line-height: 16px;
+    transform: translate(-50%, calc(-100% - 8px)); opacity: 0; transition: opacity 110ms ease;
+  }
+  .dash-tooltip.show { opacity: 1; }
+  .hbars { display: grid; grid-template-columns: minmax(72px, max-content) minmax(0, 1fr); gap: 12px 16px; align-items: center; margin: 0; }
+  .hbars dt { font-size: 14px; line-height: 18px; overflow-wrap: anywhere; }
+  .hbars dd { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; }
+  .hbar { flex: none; max-width: calc(100% - 48px); height: 16px; border-radius: 0 4px 4px 0; background: var(--dash-series); }
+  .hbar-value { font-size: 12px; line-height: 16px; color: var(--cds-text-secondary); font-variant-numeric: tabular-nums; }
+  .dash-data { margin-top: 16px; }
+  .dash-data summary { font-size: 12px; line-height: 16px; color: var(--cds-link-primary); cursor: pointer; }
+  .dash-data table { margin-top: 8px; }
+  .dash-empty { margin: 4px 0; color: var(--cds-text-secondary); font-size: 14px; }
+  .cds-scope .cds--data-table-container { min-width: 0; }
+  /* Table titles in the dashboard match the chart cards' titles, so the page has one heading level. */
+  .dash-grid .cds--data-table-header { padding-block: 16px; }
+  .cds-scope .dash-grid .cds--data-table-header__title { margin: 0; font-size: 16px; line-height: 22px; font-weight: 600; letter-spacing: 0; }
+  .cds-scope .dash-grid .cds--data-table-header__description { margin: 2px 0 0; font-size: 12px; line-height: 16px; letter-spacing: 0.32px; }
+  .cds-scope .cds--data-table th.num .cds--table-header-label { text-align: right; }
+  .cds-scope td.num, .cds-scope th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cds-scope .mono { font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; color: var(--cds-text-secondary); }
+  .dash-status { display: inline-flex; align-items: center; gap: 4px; }
+  .dash-status-icon { flex: none; }
+  .dash-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  .dash-tags .cds--tag { margin: 0; }
+  .cds-scope .cds--inline-notification { max-width: none; margin: 0 0 16px; }
+  .print-only { display: none; }
+
   /* Print views: A4 sheets at real size. On screen each sheet shows its 12 mm page margin as padding. */
   @page { size: A4; margin: 12mm; }
   .sheets { overflow-x: auto; padding: 8px 0; }
@@ -261,5 +332,18 @@
     .sheet { width: auto; height: 272mm; padding: 0; margin: 0; box-shadow: none; break-after: page; }
     .sheet:last-child { break-after: auto; }
     .sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* Reports: print only the report, on white, full width. "Save as PDF" in the print dialog makes the PDF. */
+    .cds-scope { margin: 0; padding: 0; background: #fff !important; }
+    .cds-scope .dash-toolbar, .cds-scope .cds--content-switcher, .cds-scope .dash-subtitle, .dash-data, .dash-tooltip { display: none !important; }
+    .print-only { display: block !important; }
+    .dash-print-head { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #c6c6c6; }
+    .dash-print-brand { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.32px; }
+    .dash-print-meta { margin: 2px 0 0; font-size: 12px; color: #525252; }
+    .dash-kpis { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+    .dash-kpi { min-height: 0; }
+    .dash-kpi__value { font-size: 32px; line-height: 40px; }
+    .dash-grid > * { grid-column: span 12 !important; }
+    .cds-scope .cds--tile, .dash-card, .cds-scope .cds--data-table-container, .cds-scope tr { break-inside: avoid; }
+    .cds-scope * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>

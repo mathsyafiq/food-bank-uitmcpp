@@ -46,6 +46,49 @@ app.books[DEMO_NAMELIST] = {
 };
 console.log('Demo namelist link: https://docs.google.com/spreadsheets/d/' + DEMO_NAMELIST + '/edit');
 
+// 30 days of made-up activity so the Reports dashboard has something to show. Rows are stamped in time order,
+// because reports find date ranges by binary search on recorded_at.
+(function seedHistory() {
+  const DAY = 24 * 60 * 60 * 1000;
+  const start = new Date(new Date().setHours(0, 0, 0, 0) - 29 * DAY);
+  // Dates must come from the backend's own sandbox, or its date checks (instanceof Date) will not recognise them.
+  const restamp = (fromRows, whenOutside) => ['Visits', 'Transactions', 'Batches'].forEach((tab) => {
+    const when = app.run('new Date(' + whenOutside.getTime() + ')');
+    t[tab].slice(fromRows[tab]).forEach((r) => {
+      if ('recorded_at' in r) r.recorded_at = when;
+      if ('occurred_at' in r) r.occurred_at = when;
+      if ('created_at' in r) r.created_at = when;
+    });
+  });
+  const counts = () => ({ Visits: t.Visits.length, Transactions: t.Transactions.length, Batches: t.Batches.length });
+  t.Locations.push({ location_id: 'P2', name: 'Pantri 2 (demo)', type: 'PANTRY', active: true });
+  t.Settings.push({ key: 'public_submits_per_minute', value: '1000' });
+  app.user.email = STAFF_EMAIL;
+  let before = counts();
+  app.fn('staffReceive')({ location_id: 'S1', quantities: { 'NB-001': 120, 'NB-002': 60, 'NB-003': 200, 'NB-004': 50, 'NB-005': 80, 'NB-006': 40, 'NB-007': 30, 'NB-008': 25 }, donor_source: 'Demo donor' });
+  app.fn('staffTransfer')({ from_location_id: 'S1', to_location_id: 'P1', quantities: { 'NB-001': 40, 'NB-002': 20, 'NB-003': 80, 'NB-004': 20, 'NB-005': 30, 'NB-006': 15, 'NB-007': 10, 'NB-008': 10 } });
+  app.fn('staffTransfer')({ from_location_id: 'S1', to_location_id: 'P2', quantities: { 'NB-001': 20, 'NB-003': 50, 'NB-005': 20, 'NB-007': 6 } });
+  restamp(before, new Date(start.getTime() - DAY));
+  let seed = 11;
+  const random = (n) => (seed = (seed * 48271) % 2147483647) % n;
+  for (let d = 0; d < 30; d++) {
+    const weekday = new Date(start.getTime() + d * DAY).getDay();
+    const visitsToday = weekday === 0 || weekday === 6 ? random(3) : 4 + random(7);
+    for (let v = 0; v < visitsToday; v++) {
+      const id = '20240001' + String(random(40)).padStart(2, '0');
+      const lines = [{ item_id: 'NB-00' + (1 + random(8)), qty: random(9) === 0 ? 12 : 1 + random(3) }];
+      if (random(2)) lines.push({ item_id: 'NB-00' + (1 + random(8)), qty: 1 });
+      before = counts();
+      app.fn('doPost')({ postData: { contents: JSON.stringify({
+        action: 'submitVisit', pantry_id: random(3) ? 'P1' : 'P2',
+        payload: { visit_id: require('crypto').randomUUID(), occurred_at: new Date().toISOString(), lines,
+          student: { id, name: 'Pelajar Demo ' + id.slice(-2), faculty_code: 'DEMO1', consent: true } },
+      }) } });
+      restamp(before, new Date(start.getTime() + d * DAY + (9 + v) * 60 * 60 * 1000));
+    }
+  }
+})();
+
 function staffPage() {
   const read = (name) => fs.readFileSync(path.join(ROOT, name + '.html'), 'utf8');
   const shim = `<script>

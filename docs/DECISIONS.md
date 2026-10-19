@@ -82,6 +82,12 @@ Approved on 2026-10-19 when the owner approved the plan and asked to build it.
 | 34 | Re-importing keeps visit history for students already known. Students no longer on the namelist are removed if they never visited, or kept as self-registered if they did (retention removes them a year after their last visit). | Keeps HEP's contact list accurate without losing visit counts. |
 | 35 | Names in capitals are shown in title case ("Ahmad Faiz bin Rahman"), with bin, binti, a/l and a/p in lower case; mixed-case names are shown as written. Students gain a `program` column at the end of the tab, added automatically. | Registrar lists are usually in capitals. Adding the column at the end keeps existing data in place. |
 
+## 2026-10-19: Reports dashboard
+
+| # | Decision | Why |
+|---|---|---|
+| 36 | The staff Reports page opens on a dashboard built with IBM's Carbon Design System: KPI tiles (visits, students, items given out and received, flagged visits, and visits not on the namelist), visits per day, week or month, visits by location, items given out, stock at or below its threshold, and the latest flagged visits. Transactions, Visits and Flagged visits stay as Carbon tables with CSV download. Only the Reports page uses Carbon; the rest of the staff app keeps decision 29's design. The Carbon CSS is a trimmed build (`tools/carbon/build.sh`, `@carbon/styles` 1.116.0) with IBM Plex Sans embedded, so there are no CDN or font requests, and it loads only when Reports first opens. It follows the device's light or dark setting (Carbon Gray 10 and Gray 100). The dashboard sends only totals to the browser, never student keys, IDs or names. "Print / Save as PDF" opens the browser's print dialog with a print layout (A4, light theme, no controls, the period and location at the top); choosing "Save as PDF" there makes the PDF. `#reports` at the end of the staff link opens Reports directly. | Owner's request. Printing through the browser needs no PDF library and keeps the report on the device. Carbon and Plex are Apache-2.0 and SIL OFL; their licences are in `tools/carbon/licenses`. |
+
 ## Deferred
 
 - **DailySummary tab and yearly archive** (PLAN 5.6): not needed until the ledger grows. Reports read the ledger by date slice for now. Build before the first year ends.

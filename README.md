@@ -27,8 +27,8 @@ Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [doc
 
 ## Everyday use
 
-- **Students:** enter their student ID, name and faculty (every visit), tick consent, then scan or tap items and press Done. A line of 10 or more is allowed but flagged for staff.
-- **Staff:** Receive (deliveries into the store), Transfer (store to pantry), Count (stock count; sync pantry devices first), Adjust (damaged, expired, correction), Void visit (undo a mistaken visit), Reports (with CSV export).
+- **Students:** enter their student ID. If the namelist is imported they confirm their name; otherwise, or if their ID is not on it, they give their name and faculty and tick consent. Then they scan or tap items and press Done. A line of 10 or more is allowed but flagged for staff.
+- **Staff:** Receive (deliveries into the store), Transfer (store to pantry), Count (stock count; sync pantry devices first), Adjust (damaged, expired, correction), Void visit (undo a mistaken visit), Reports (a dashboard of visits, items and low stock that can be printed or saved as PDF, plus tables with CSV export).
 - **Emails:** hourly low-stock and out-of-stock alerts per location (each at most once a day), plus a nightly digest of large-quantity visits. Emails never contain student data.
 - **Nightly at 2am:** stock check (emails admins if the Stock tab and the ledger disagree), PDPA retention (student links on visits older than a year are removed, and students not seen for a year are deleted), large-quantity digest.
 
@@ -51,6 +51,7 @@ tools/     local servers and the deploy script
 
 - Tests: `npm test` (Node 22 or later, no packages to install).
 - Simulator: `node tools/local-backend.js`, then open http://localhost:8090/?p=P1 (student) and http://localhost:8090/staff. It runs the real backend code on demo data in memory.
+- Reports dashboard styles: `backend/ui/staff-carbon.html` is generated from a trimmed IBM Carbon build with IBM Plex Sans embedded. To change which Carbon components are included, edit `tools/carbon/dashboard.scss` and run `sh tools/carbon/build.sh` (needs npm; installs into a temporary folder, nothing is added to this repo).
 - Deploy the backend: `npm run deploy` (needs `clasp`, signed in as the owner). This updates both web app deployments: the API deployment open to anyone, the staff deployment limited to UiTM accounts.
 - Deploy the student app: push to `main`. GitHub Actions runs the tests and publishes `web/` and `core/` to Pages. Bump `version` in `web/config.js` and `VERSION` in `web/sw.js` when releasing.
 - The code lives in OneDrive. OneDrive syncs every change, so keep this folder set to "Always keep on this device", and treat GitHub as the backup.

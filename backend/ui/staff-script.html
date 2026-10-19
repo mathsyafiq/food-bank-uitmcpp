@@ -643,58 +643,447 @@
     })));
   }
 
-  // ---------- Reports ----------
+  // ---------- Reports: dashboard in IBM's Carbon Design System (docs/DECISIONS.md 36) ----------
+
+  // Fixed icon markup (never data), 16 x 16 like Carbon's icons.
+  const ICONS = {
+    printer: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 5V2H4v3H2.5A1.5 1.5 0 0 0 1 6.5V11h3v3h8v-3h3V6.5A1.5 1.5 0 0 0 13.5 5zM5 3h6v2H5zm6 10H5V9h6zm3-3h-2V8H4v2H2V6.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5z"/></svg>',
+    download: '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M13 13v2H3v-2H2v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2zM13 7l-.7-.7-3.8 3.8V1h-1v9.1L3.7 6.3 3 7l5 5z"/></svg>',
+    chevron: '<svg class="cds--select__arrow" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 11L3 6l.7-.7L8 9.6l4.3-4.3L13 6z"/></svg>',
+    info: '<svg class="cds--inline-notification__icon" viewBox="0 0 20 20" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M10 1a9 9 0 1 0 9 9 9 9 0 0 0-9-9zm.9 14H9.1V8.5h1.8zM10 7.2a1.1 1.1 0 1 1 1.1-1.1A1.1 1.1 0 0 1 10 7.2z"/></svg>',
+    warning: '<svg class="dash-status-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="var(--cds-support-warning)" d="M8 1L1 15h14z"/><path fill="#000" d="M7.4 6h1.2v4.4H7.4zM8 13.1a.8.8 0 1 1 .8-.8.8.8 0 0 1-.8.8z"/></svg>',
+  };
+
+  function svgIcon(name) {
+    const holder = document.createElement('span');
+    holder.innerHTML = ICONS[name];
+    return holder.firstElementChild;
+  }
+
+  function withClass(node, cls) {
+    node.classList.add(cls);
+    return node;
+  }
+
+  let carbonStyles = null;
+  /** The Carbon stylesheet (backend/ui/staff-carbon.html) loads the first time Reports opens. */
+  function loadCarbon() {
+    if (!carbonStyles) {
+      carbonStyles = call('staffCarbonStyles').then((html) => {
+        const holder = document.createElement('div');
+        holder.innerHTML = html; // Our own static stylesheet, built by tools/carbon/build.sh.
+        document.head.append(holder.firstElementChild);
+      }).catch((err) => {
+        carbonStyles = null;
+        throw err;
+      });
+    }
+    return carbonStyles;
+  }
+
+  // Carbon zones: Gray 10 (light) or Gray 100 (dark), following the device. Printing always uses light.
+  const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+  let printing = false;
+  function carbonZone() {
+    return !printing && darkMedia.matches ? 'cds--g100' : 'cds--g10';
+  }
+  function applyZone() {
+    document.querySelectorAll('.cds-scope').forEach((scope) => {
+      scope.classList.remove('cds--g10', 'cds--g100');
+      scope.classList.add(carbonZone());
+    });
+  }
+  darkMedia.addEventListener('change', applyZone);
+  window.addEventListener('beforeprint', () => { printing = true; applyZone(); });
+  window.addEventListener('afterprint', () => { printing = false; applyZone(); });
+
+  // Small builders for Carbon's markup, so the page uses Carbon's own classes and structure.
+  let uid = 0;
+  const cds = {
+    button(label, kind, onclick, iconName) {
+      return el('button', { type: 'button', class: 'cds--btn cds--btn--md cds--btn--' + kind, onclick: onclick },
+        label, iconName ? withClass(svgIcon(iconName), 'cds--btn__icon') : null);
+    },
+    select(label, options, value) {
+      const id = 'cds-' + (++uid);
+      const input = el('select', { id: id, class: 'cds--select-input' },
+        options.map((o) => el('option', { value: o[0], selected: o[0] === value }, o[1])));
+      const arrow = svgIcon('chevron');
+      return {
+        input: input,
+        node: el('div', { class: 'cds--form-item' }, el('div', { class: 'cds--select' },
+          el('label', { for: id, class: 'cds--label' }, label),
+          el('div', { class: 'cds--select-input__wrapper' }, input, arrow))),
+      };
+    },
+    date(label, value) {
+      const id = 'cds-' + (++uid);
+      const input = el('input', { id: id, type: 'date', class: 'cds--text-input', value: value });
+      return {
+        input: input,
+        node: el('div', { class: 'cds--form-item cds--text-input-wrapper' },
+          el('div', { class: 'cds--text-input__label-helper-wrapper' }, el('label', { for: id, class: 'cds--label' }, label)),
+          el('div', { class: 'cds--text-input__field-outer-wrapper' }, el('div', { class: 'cds--text-input__field-wrapper' }, input))),
+      };
+    },
+    tag(text, color) {
+      return el('span', { class: 'cds--tag cds--tag--sm cds--tag--' + color }, el('span', { class: 'cds--tag__label' }, text));
+    },
+    notification(kind, title, subtitle) {
+      return el('div', { class: 'cds--inline-notification cds--inline-notification--low-contrast cds--inline-notification--' + kind, role: kind === 'error' ? 'alert' : 'status' },
+        el('div', { class: 'cds--inline-notification__details' }, svgIcon('info'),
+          el('div', { class: 'cds--inline-notification__text-wrapper' },
+            el('div', { class: 'cds--inline-notification__title' }, title),
+            subtitle ? el('div', { class: 'cds--inline-notification__subtitle' }, subtitle) : null)));
+    },
+    /** headers: [{label, num}], rows: arrays of cell content. */
+    table(title, description, headers, rows, empty) {
+      return el('div', { class: 'cds--data-table-container' },
+        el('div', { class: 'cds--data-table-header' },
+          el('h4', { class: 'cds--data-table-header__title' }, title),
+          description ? el('p', { class: 'cds--data-table-header__description' }, description) : null),
+        el('div', { class: 'cds--data-table-content' },
+          el('table', { class: 'cds--data-table cds--data-table--sm' },
+            el('thead', null, el('tr', null, headers.map((h) => el('th', { class: h.num ? 'num' : null },
+              el('div', { class: 'cds--table-header-label' }, h.label))))),
+            el('tbody', null, rows.length
+              ? rows.map((cells) => el('tr', null, cells.map((c, i) => el('td', { class: headers[i].num ? 'num' : null }, c))))
+              : el('tr', null, el('td', { colspan: String(headers.length), class: 'dash-empty' }, empty || 'Nothing to show.'))))));
+    },
+    switcher(items, selected, onSelect) {
+      return el('div', { class: 'cds--content-switcher cds--content-switcher--md', role: 'tablist', 'aria-label': 'Report' },
+        items.map((item) => el('button', {
+          type: 'button', role: 'tab', 'aria-selected': item[0] === selected ? 'true' : 'false',
+          class: 'cds--content-switcher-btn' + (item[0] === selected ? ' cds--content-switcher--selected' : ''),
+          onclick: () => onSelect(item[0]),
+        }, el('span', { class: 'cds--content-switcher__label' }, item[1]))));
+    },
+  };
+
+  const numberFormat = new Intl.NumberFormat('en-MY');
+  const fmt = (n) => numberFormat.format(n);
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function bucketLabel(key, unit) {
+    const parts = key.split('-').map(Number);
+    if (unit === 'month') return MONTHS[parts[1] - 1] + ' ' + parts[0];
+    return parts[2] + ' ' + MONTHS[parts[1] - 1];
+  }
+  function rangeFor(preset) {
+    const now = new Date();
+    if (preset === 'month') return [dayText(new Date(now.getFullYear(), now.getMonth(), 1)), today()];
+    if (preset === 'last-month') {
+      return [dayText(new Date(now.getFullYear(), now.getMonth() - 1, 1)), dayText(new Date(now.getFullYear(), now.getMonth(), 0))];
+    }
+    return [daysAgo(preset === '7' ? 6 : 29), today()];
+  }
+
+  // Filters and view stay as they were when staff come back to Reports.
+  const reportState = { view: 'dashboard', preset: '30', from: daysAgo(29), to: today(), location_id: '', item_id: '', type: '' };
 
   function renderReports() {
-    const kind = el('select', null,
-      el('option', { value: 'transactions' }, 'Transactions'),
-      el('option', { value: 'visits' }, 'Visits'),
-      el('option', { value: 'flagged' }, 'Flagged visits (10 or more of one item)'));
-    const from = el('input', { type: 'date', value: daysAgo(6) });
-    const to = el('input', { type: 'date', value: today() });
-    const location = locationSelect(null, '', true);
-    const item = itemSelect('', 'All items');
-    const type = el('select', null, ['', 'OUT', 'IN', 'TRANSFER', 'ADJUST', 'VOID'].map((t) => el('option', { value: t }, t || 'All types')));
-    const txOnly = el('div', { class: 'row' }, field('Item', item), field('Type', type));
-    kind.addEventListener('change', () => { txOnly.hidden = kind.value !== 'transactions'; });
-    const runButton = el('button', { class: 'primary' }, 'Show report');
-    const csvButton = el('button', { class: 'secondary' }, 'Download CSV');
-    const out = el('div');
-    const filters = () => ({
-      from: from.value, to: to.value, location_id: location.value,
-      item_id: kind.value === 'transactions' ? item.value : '', type: kind.value === 'transactions' ? type.value : '',
-      flagged_only: kind.value === 'flagged',
+    const scope = el('div', { class: 'cds-scope ' + carbonZone() });
+    view.append(scope);
+    scope.append(el('p', { class: 'dash-loading' }, 'Loading reports…'));
+    act(null, async () => {
+      await loadCarbon();
+      if (state.tab === 'reports') drawReports(scope);
     });
-    runButton.addEventListener('click', () => act(runButton, async () => {
-      if (kind.value === 'transactions') {
-        const report = await call('staffTransactionsReport', filters());
-        out.replaceChildren(summary(report), table(
-          ['Time', 'Location', 'Type', 'Item', { label: 'Qty', num: true }, 'Visit / batch', 'Staff', 'Reason / flag'],
-          report.rows.map((r) => el('tr', null, el('td', null, r.occurred_at), el('td', null, r.location), el('td', null, r.type),
-            el('td', null, r.item), el('td', { class: 'num' }, String(r.quantity)), el('td', { class: 'muted' }, r.visit_id || r.batch_id),
-            el('td', null, r.staff_email), el('td', null, [r.reason, r.flag].filter(Boolean).join(' · '))))));
+  }
+
+  function drawReports(scope) {
+    const s = reportState;
+    const preset = cds.select('Date range', [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['month', 'This month'], ['last-month', 'Last month'], ['custom', 'Custom']], s.preset);
+    const from = cds.date('From', s.from);
+    const to = cds.date('To', s.to);
+    const location = cds.select('Location', [['', 'All locations']].concat(activeLocations().map((l) => [l.location_id, l.name])), s.location_id);
+    const item = cds.select('Item', [['', 'All items']].concat(allItems().map((i) => [i.item_id, i.name])), s.item_id);
+    const type = cds.select('Type', ['', 'OUT', 'IN', 'TRANSFER', 'ADJUST', 'VOID'].map((t) => [t, t || 'All types']), s.type);
+    const body = el('div', { class: 'dash-body' });
+    const csvButton = cds.button('Download CSV', 'tertiary', () => downloadCsv(csvButton), 'download');
+    const printButton = cds.button('Print / Save as PDF', 'primary', () => window.print(), 'printer');
+
+    const refresh = () => {
+      Object.assign(s, { from: from.input.value, to: to.input.value, location_id: location.input.value, item_id: item.input.value, type: type.input.value });
+      loadView(body);
+    };
+    preset.input.addEventListener('change', () => {
+      s.preset = preset.input.value;
+      if (s.preset !== 'custom') [from.input.value, to.input.value] = rangeFor(s.preset);
+      refresh();
+    });
+    [from.input, to.input].forEach((input) => input.addEventListener('change', () => {
+      s.preset = 'custom';
+      preset.input.value = 'custom';
+      refresh();
+    }));
+    [location.input, item.input, type.input].forEach((input) => input.addEventListener('change', refresh));
+
+    const toolbar = el('div', { class: 'dash-toolbar' }, preset.node, from.node, to.node, location.node,
+      s.view === 'transactions' ? [item.node, type.node] : null,
+      el('div', { class: 'dash-actions' }, s.view === 'dashboard' ? null : csvButton, printButton));
+
+    scope.replaceChildren(
+      el('div', { class: 'print-only dash-print-head' },
+        el('p', { class: 'dash-print-brand' }, 'Food Bank UiTMCPP'),
+        el('p', { class: 'dash-print-meta', id: 'dash-print-meta' })),
+      el('h2', { class: 'dash-title' }, 'Reports'),
+      el('p', { class: 'dash-subtitle' }, 'What went out, what came in, and what needs restocking.'),
+      cds.switcher([['dashboard', 'Dashboard'], ['transactions', 'Transactions'], ['visits', 'Visits'], ['flagged', 'Flagged visits']], s.view, (v) => {
+        s.view = v;
+        drawReports(scope);
+      }),
+      toolbar,
+      body);
+    loadView(body);
+  }
+
+  function filtersNow() {
+    const s = reportState;
+    return {
+      from: s.from, to: s.to, location_id: s.location_id,
+      item_id: s.view === 'transactions' ? s.item_id : '', type: s.view === 'transactions' ? s.type : '',
+      flagged_only: s.view === 'flagged',
+    };
+  }
+
+  function printMeta(text) {
+    const meta = document.getElementById('dash-print-meta');
+    if (meta) meta.textContent = text;
+  }
+
+  let loadToken = 0;
+  async function loadView(body) {
+    const token = ++loadToken;
+    const s = reportState;
+    body.replaceChildren(skeleton());
+    try {
+      if (s.view === 'dashboard') {
+        const data = await call('staffDashboard', filtersNow());
+        if (token === loadToken) drawDashboard(body, data);
+      } else if (s.view === 'transactions') {
+        const report = await call('staffTransactionsReport', filtersNow());
+        if (token === loadToken) drawTransactions(body, report);
       } else {
-        const report = await call('staffVisitsReport', filters());
-        out.replaceChildren(summary(report), table(
-          ['Time', 'Location', 'Visit ID', { label: 'Lines', num: true }, 'Large lines', 'Notes'],
-          report.rows.map((r) => el('tr', null, el('td', null, r.occurred_at), el('td', null, r.location), el('td', { class: 'muted' }, r.visit_id),
-            el('td', { class: 'num' }, String(r.lines)), el('td', null, r.large_lines),
-            el('td', null, [r.flagged ? 'flagged' : '', r.unverified_student ? 'not on namelist' : '', r.voided ? 'voided' : '', r.source === 'PUBLIC' ? 'student phone' : 'pantry device'].filter(Boolean).join(' · '))))));
+        const report = await call('staffVisitsReport', filtersNow());
+        if (token === loadToken) drawVisits(body, report);
       }
-    }));
-    csvButton.addEventListener('click', () => act(csvButton, async () => {
-      out.replaceChildren(csvTools(await call('staffReportCsv', kind.value === 'transactions' ? 'transactions' : 'visits', filters())));
-    }));
-    function summary(report) {
-      return el('p', { class: 'muted' }, report.total + ' row(s)' + (report.limited ? '. Showing the latest ' + report.rows.length + '; download the CSV for all.' : '.'));
+    } catch (err) {
+      if (token === loadToken) body.replaceChildren(cds.notification('error', 'Could not load the report', err.message));
     }
-    view.append(
-      el('h2', null, 'Reports'),
-      el('div', { class: 'card' },
-        el('div', { class: 'row' }, field('Report', kind), field('From', from), field('To', to), field('Location', location)),
-        txOnly,
-        el('div', { class: 'actions' }, runButton, csvButton)),
-      out);
+  }
+
+  function skeleton() {
+    return el('div', { class: 'dash-kpis', 'aria-busy': 'true' }, [1, 2, 3, 4].map(() =>
+      el('div', { class: 'cds--tile dash-kpi' }, el('div', { class: 'cds--skeleton__text', style: 'width:60%' }),
+        el('div', { class: 'cds--skeleton__text', style: 'width:40%;height:40px;margin-top:24px' }))));
+  }
+
+  function kpi(label, value, note) {
+    return el('div', { class: 'cds--tile dash-kpi' },
+      el('p', { class: 'dash-kpi__label' }, label),
+      el('p', { class: 'dash-kpi__value' }, fmt(value)),
+      note ? el('p', { class: 'dash-kpi__note' }, note) : null);
+  }
+
+  function card(cls, title, subtitle, ...content) {
+    return el('section', { class: 'cds--tile dash-card ' + cls },
+      el('h3', { class: 'dash-card__title' }, title),
+      subtitle ? el('p', { class: 'dash-card__subtitle' }, subtitle) : null,
+      content);
+  }
+
+  /** Data behind a chart, as a table, for screen readers and anyone who wants the numbers. */
+  function dataView(headers, rows) {
+    return el('details', { class: 'dash-data' }, el('summary', null, 'Show data'),
+      el('table', { class: 'cds--data-table cds--data-table--xs' },
+        el('thead', null, el('tr', null, headers.map((h, i) => el('th', { class: i ? 'num' : null }, h)))),
+        el('tbody', null, rows.map((r) => el('tr', null, r.map((c, i) => el('td', { class: i ? 'num' : null }, c)))))));
+  }
+
+  function drawDashboard(body, d) {
+    const k = d.kpis;
+    printMeta(d.from + ' to ' + d.to + ' · ' + d.location + ' · printed ' + new Date().toLocaleString('en-MY', { dateStyle: 'medium', timeStyle: 'short' }));
+    const perVisit = k.visits ? (k.items_out / k.visits).toFixed(1).replace(/\.0$/, '') : '0';
+    const tiles = [
+      kpi('Visits', k.visits, k.students ? fmt(k.students) + ' different students' : null),
+      kpi('Items given out', k.items_out, k.visits ? perVisit + ' per visit on average' : null),
+      kpi('Items received', k.received, 'Deliveries into any location'),
+      kpi('Flagged visits', k.flagged, '10 or more of one item'),
+    ];
+    if (d.student_mode === 'ROSTER') tiles.push(kpi('Not on namelist', k.not_on_namelist, 'Visits where the student typed their details'));
+
+    const unitWord = { day: 'day', week: 'week (from Monday)', month: 'month' }[d.visits_over_time.unit];
+    const over = d.visits_over_time.points;
+    const visitsChart = el('div', { class: 'dash-chart' });
+    const lowRows = d.low_stock.map((r) => [
+      r.item, r.location, fmt(r.on_hand), fmt(r.threshold),
+      r.status === 'out' ? cds.tag('Out', 'red') : el('span', { class: 'dash-status' }, svgIcon('warning'), cds.tag('Low', 'warm-gray')),
+    ]);
+
+    body.replaceChildren(
+      el('div', { class: 'dash-kpis' }, tiles),
+      el('div', { class: 'dash-grid' },
+        card('span-8', 'Visits per ' + unitWord, d.from + ' to ' + d.to + ' · ' + d.location, visitsChart,
+          dataView([cap(d.visits_over_time.unit), 'Visits'], over.map((p) => [bucketLabel(p.key, d.visits_over_time.unit), fmt(p.visits)]))),
+        card('span-4', 'Visits by location', 'Share of visits in this period',
+          hbars(d.by_location.map((r) => [r.name, r.visits]), 'No visits in this period.')),
+        card('span-6', 'Items given out', 'Most taken first, after voided visits are removed',
+          hbars(d.top_items.map((r) => [r.name, r.quantity]), 'Nothing given out in this period.')),
+        el('div', { class: 'span-6' }, cds.table('Stock to act on', 'At or below its low-stock threshold now', [
+          { label: 'Item' }, { label: 'Location' }, { label: 'On hand', num: true }, { label: 'Threshold', num: true }, { label: 'Status' },
+        ], lowRows, 'Nothing is at or below its threshold.')),
+        el('div', { class: 'span-12' }, cds.table('Flagged visits', 'Latest visits with 10 or more of one item. Void mistakes on the Void visit page.', [
+          { label: 'Time' }, { label: 'Location' }, { label: 'Lines', num: true }, { label: 'Visit ID' },
+        ], d.flagged_visits.map((v) => [v.occurred_at, v.location, fmt(v.lines), el('span', { class: 'mono' }, v.visit_id)]),
+        'No flagged visits in this period.'))));
+    drawColumns(visitsChart, over.map((p) => ({ label: bucketLabel(p.key, d.visits_over_time.unit), value: p.visits })), 'visits');
+  }
+
+  const cap = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+
+  /** Horizontal bars with the value at the tip (few categories, long names). */
+  function hbars(rows, empty) {
+    if (!rows.length) return el('p', { class: 'dash-empty' }, empty);
+    const max = Math.max.apply(null, rows.map((r) => r[1])) || 1;
+    return el('dl', { class: 'hbars' }, rows.map((r) => [
+      el('dt', null, r[0]),
+      el('dd', null,
+        el('span', { class: 'hbar', style: 'width:' + Math.max(1, (r[1] / max) * 100) + '%', title: r[0] + ': ' + fmt(r[1]) }),
+        el('span', { class: 'hbar-value' }, fmt(r[1]))),
+    ]));
+  }
+
+  /** Top of the y axis: four whole-number steps (0, 3, 6, 9, 12), clean steps for large values (0, 50, 100…). */
+  function niceMax(value) {
+    const raw = Math.max(1, value) / 4;
+    if (raw <= 10) return Math.ceil(raw) * 4;
+    const power = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((f) => f * power).filter((s) => s >= raw && Number.isInteger(s))[0];
+    return step * 4;
+  }
+
+  /**
+   * Column chart drawn as SVG: bars at most 24 px wide with 4 px rounded tops, hairline gridlines,
+   * and a tooltip on hover or keyboard focus. Redraws when its box changes width.
+   */
+  function drawColumns(holder, points, noun) {
+    const tooltip = el('div', { class: 'dash-tooltip', role: 'status' });
+    const draw = () => {
+      const width = Math.max(280, holder.clientWidth || 600);
+      const height = 220;
+      const m = { top: 12, right: 8, bottom: 28, left: 40 };
+      const plotW = width - m.left - m.right;
+      const plotH = height - m.top - m.bottom;
+      const max = niceMax(Math.max.apply(null, points.map((p) => p.value).concat([1])));
+      const band = plotW / Math.max(1, points.length);
+      const barW = Math.max(2, Math.min(24, band * 0.6));
+      const y = (v) => m.top + plotH - (v / max) * plotH;
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      const node = (tag, attrs, text) => {
+        const n = document.createElementNS(ns, tag);
+        Object.keys(attrs).forEach((a) => n.setAttribute(a, attrs[a]));
+        if (text !== undefined) n.textContent = text;
+        return n;
+      };
+      svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', cap(noun) + ' chart; use Show data for the numbers');
+      const grid = node('g', { class: 'grid' });
+      for (let i = 0; i <= 4; i++) {
+        const v = (max / 4) * i;
+        grid.append(node('line', { x1: m.left, x2: width - m.right, y1: y(v), y2: y(v) }));
+        grid.append(node('text', { class: 'tick', x: m.left - 8, y: y(v) + 4, 'text-anchor': 'end' }, fmt(v)));
+      }
+      svg.append(grid);
+      const every = Math.ceil(points.length / Math.max(1, Math.floor(plotW / 64)));
+      points.forEach((p, i) => {
+        const x = m.left + i * band + (band - barW) / 2;
+        if (p.value > 0) {
+          const top = y(p.value);
+          const r = Math.min(4, barW / 2, m.top + plotH - top);
+          const base = m.top + plotH;
+          svg.append(node('path', {
+            class: 'dash-col', // Not "bar": the print styles hide .bar, the app's top bar.
+            d: 'M' + x + ',' + base + 'V' + (top + r) + 'Q' + x + ',' + top + ' ' + (x + r) + ',' + top +
+              'H' + (x + barW - r) + 'Q' + (x + barW) + ',' + top + ' ' + (x + barW) + ',' + (top + r) + 'V' + base + 'Z',
+          }));
+        }
+        if (i % every === 0) svg.append(node('text', { class: 'tick', x: m.left + i * band + band / 2, y: height - 8, 'text-anchor': 'middle' }, p.label));
+        // Hit target: the whole band, taller than the bar, focusable for keyboard users.
+        const hit = node('rect', { class: 'hit', x: m.left + i * band, y: m.top, width: band, height: plotH, tabindex: '0', 'aria-label': p.label + ': ' + fmt(p.value) + ' ' + noun });
+        const show = () => {
+          tooltip.textContent = p.label + ' · ' + fmt(p.value) + ' ' + noun;
+          const scale = holder.clientWidth / width;
+          tooltip.style.left = (m.left + i * band + band / 2) * scale + 'px';
+          tooltip.style.top = y(p.value) * scale + 'px';
+          tooltip.classList.add('show');
+        };
+        const hide = () => tooltip.classList.remove('show');
+        hit.addEventListener('pointerenter', show);
+        hit.addEventListener('focus', show);
+        hit.addEventListener('pointerleave', hide);
+        hit.addEventListener('blur', hide);
+        svg.append(hit);
+      });
+      holder.replaceChildren(svg, tooltip);
+    };
+    draw();
+    if (window.ResizeObserver) {
+      let lastWidth = holder.clientWidth;
+      new ResizeObserver(() => {
+        if (Math.abs(holder.clientWidth - lastWidth) > 4) {
+          lastWidth = holder.clientWidth;
+          draw();
+        }
+      }).observe(holder);
+    }
+  }
+
+  function drawTransactions(body, report) {
+    printMeta('Transactions · ' + reportState.from + ' to ' + reportState.to);
+    body.replaceChildren(
+      report.limited ? cds.notification('info', 'Showing the latest ' + fmt(report.rows.length) + ' of ' + fmt(report.total) + ' rows', 'Download the CSV for all of them.') : null,
+      cds.table('Transactions', fmt(report.total) + ' row(s)', [
+        { label: 'Time' }, { label: 'Location' }, { label: 'Type' }, { label: 'Item' }, { label: 'Qty', num: true },
+        { label: 'Visit / batch' }, { label: 'Staff' }, { label: 'Reason / flag' },
+      ], report.rows.map((r) => [r.occurred_at, r.location, cds.tag(r.type, typeColor(r.type)), r.item, fmt(r.quantity),
+        el('span', { class: 'mono' }, r.visit_id || r.batch_id), r.staff_email, [r.reason, r.flag].filter(Boolean).join(' · ')]),
+      'No transactions in this period.'));
+  }
+
+  function typeColor(type) {
+    return { OUT: 'purple', IN: 'green', TRANSFER: 'blue', ADJUST: 'warm-gray', VOID: 'red' }[type] || 'gray';
+  }
+
+  function drawVisits(body, report) {
+    const flagged = reportState.view === 'flagged';
+    printMeta((flagged ? 'Flagged visits' : 'Visits') + ' · ' + reportState.from + ' to ' + reportState.to);
+    body.replaceChildren(
+      report.limited ? cds.notification('info', 'Showing the latest ' + fmt(report.rows.length) + ' of ' + fmt(report.total) + ' rows', 'Download the CSV for all of them.') : null,
+      cds.table(flagged ? 'Flagged visits' : 'Visits', fmt(report.total) + ' visit(s)' + (flagged ? ' with 10 or more of one item' : ''), [
+        { label: 'Time' }, { label: 'Location' }, { label: 'Lines', num: true }, { label: 'Large lines' }, { label: 'Notes' }, { label: 'Visit ID' },
+      ], report.rows.map((r) => [r.occurred_at, r.location, fmt(r.lines), r.large_lines,
+        el('span', { class: 'dash-tags' },
+          r.flagged ? cds.tag('Flagged', 'magenta') : null,
+          r.unverified_student ? cds.tag('Not on namelist', 'cool-gray') : null,
+          r.voided ? cds.tag('Voided', 'red') : null,
+          cds.tag(r.source === 'PUBLIC' ? 'Student phone' : 'Pantry device', 'gray')),
+        el('span', { class: 'mono' }, r.visit_id)]),
+      flagged ? 'No flagged visits in this period.' : 'No visits in this period.'));
+  }
+
+  async function downloadCsv(button) {
+    const kind = reportState.view === 'transactions' ? 'transactions' : 'visits';
+    await act(button, async () => {
+      const result = await call('staffReportCsv', kind, filtersNow());
+      const blob = new Blob(['﻿' + result.csv], { type: 'text/csv;charset=utf-8' });
+      const link = el('a', { href: URL.createObjectURL(blob), download: result.filename });
+      document.body.append(link);
+      link.click();
+      link.remove();
+      toast('Downloading ' + result.filename + '. If nothing happens, your browser blocked the download.');
+    });
   }
 
   // ---------- Devices ----------
@@ -1148,7 +1537,9 @@
   document.getElementById('who').textContent = BOOT.me.email + ' · ' + BOOT.me.role;
   act(null, async () => {
     await reload();
-    show('stock');
+    // A link ending in #reports (or any tab name) opens that tab.
+    const linked = TABS.concat(isAdmin() ? ADMIN_TABS : []).filter((t) => '#' + t[0] === location.hash)[0];
+    show(linked ? linked[0] : 'stock');
   });
 })();
 </script>

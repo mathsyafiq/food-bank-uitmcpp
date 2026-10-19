@@ -20,7 +20,8 @@ function formatDate(date, tz, pattern) {
     .replace('dd', pad(d.getUTCDate()))
     .replace('HH', pad(d.getUTCHours()))
     .replace('mm', pad(d.getUTCMinutes()))
-    .replace('ss', pad(d.getUTCSeconds()));
+    .replace('ss', pad(d.getUTCSeconds()))
+    .replace(/^u$/, String(((d.getUTCDay() + 6) % 7) + 1)); // ISO weekday, 1 = Monday
 }
 
 function createFakeDb(schema) {
@@ -121,6 +122,9 @@ function loadBackend() {
       createTextOutput: (text) => ({ text, setMimeType() { return this; } }),
     },
     MailApp: { sendEmail: (msg) => mail.push(msg) },
+    HtmlService: {
+      createHtmlOutputFromFile: (name) => ({ getContent: () => fs.readFileSync(path.join(ROOT, name + '.html'), 'utf8') }),
+    },
     ScriptApp: { getProjectTriggers: () => [] },
   };
   vm.createContext(context);

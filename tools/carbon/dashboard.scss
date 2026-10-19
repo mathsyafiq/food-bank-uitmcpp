@@ -1,0 +1,30 @@
+// The slice of IBM's Carbon Design System used by the staff Reports dashboard (docs/DECISIONS.md 36).
+// Built by tools/carbon/build.sh into backend/ui/staff-carbon.html. Only these components are compiled,
+// and Carbon's global reset and body styles are off, so nothing outside the dashboard changes.
+@use '@carbon/styles/scss/config' with (
+  $css--font-face: false, // IBM Plex Sans is embedded by build.sh instead of loaded from a CDN.
+  $css--reset: false,
+  $css--body: false,
+  $css--default-type: false
+);
+@use '@carbon/styles/scss/themes';
+// Light (Gray 10) and dark (Gray 100) zones: .cds--g10 and .cds--g100 hold every theme and component token.
+@use '@carbon/styles/scss/zone' with (
+  $zones: (
+    g10: themes.$g10,
+    g100: themes.$g100,
+  )
+);
+// Layout tokens (component heights and padding) and layer tokens (tile backgrounds); components rely on both.
+@use '@carbon/styles/scss/layout';
+@use '@carbon/styles/scss/layer';
+@use '@carbon/styles/scss/components/button';
+@use '@carbon/styles/scss/components/content-switcher';
+@use '@carbon/styles/scss/components/data-table';
+@use '@carbon/styles/scss/components/form';
+@use '@carbon/styles/scss/components/notification';
+@use '@carbon/styles/scss/components/select';
+@use '@carbon/styles/scss/components/skeleton-styles';
+@use '@carbon/styles/scss/components/tag';
+@use '@carbon/styles/scss/components/text-input';
+@use '@carbon/styles/scss/components/tile';
