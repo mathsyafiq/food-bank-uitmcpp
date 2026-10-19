@@ -1,6 +1,6 @@
 // Service worker: keeps the app shell available offline (CLAUDE.md section 9).
 // API calls are cross-site POSTs and always go to the network; the app keeps its own data in IndexedDB.
-const VERSION = 'foodbank-0.2.0';
+const VERSION = 'foodbank-0.2.1';
 const SHELL = [
   './',
   'index.html',

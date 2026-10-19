@@ -647,6 +647,29 @@ async function loadCatalog() {
   }
 }
 
+/** True on the start screen before anyone has typed, so it is safe to redraw it. */
+function idleOnStart() {
+  const input = document.getElementById('student-id');
+  return !!input && !input.value;
+}
+
+/**
+ * Fetches the latest catalogue without making anyone wait. Redraws the start screen only if the list changed
+ * and no one has started a visit; otherwise the new list is used from the next visit.
+ */
+async function refreshCatalog() {
+  const before = state.catalog ? state.catalog.version : '';
+  try {
+    await loadCatalog();
+  } catch (err) {
+    if (err.code === 'PANTRY_UNKNOWN') {
+      renderMessage('Pantri tidak dikenali. Sila imbas poster QR di pantri.', 'Pantry not recognised. Please scan the QR poster at the pantry.');
+    }
+    return; // Offline or busy: keep the saved list.
+  }
+  if (state.catalog && state.catalog.version !== before && idleOnStart()) renderStart();
+}
+
 // ---------- Start-up ----------
 
 async function boot() {
@@ -663,24 +686,33 @@ async function boot() {
   }
 
   queue = VisitQueue.create(store.queueStorage, (visits) => call('syncVisits', { visits }).then((data) => data.results));
+  // A saved catalogue belongs to one pantry: never show it for another (for example after scanning another QR poster).
   const cached = await store.get('kv', 'catalog');
-  if (cached) state.catalog = cached;
-  for (const item of (cached ? cached.items : [])) {
-    const photo = await store.get('photos', item.item_id);
-    if (photo) state.photos[item.item_id] = photo;
+  const pantryNow = state.device ? state.device.location_id : state.pantryId;
+  if (cached && cached.location && cached.location.location_id === pantryNow) {
+    state.catalog = cached;
+    for (const item of cached.items) {
+      const photo = await store.get('photos', item.item_id);
+      if (photo) state.photos[item.item_id] = photo;
+    }
   }
 
-  try {
-    await loadCatalog();
-  } catch (err) {
-    if (!state.catalog) {
+  if (state.catalog) {
+    // Show the saved list straight away; Apps Script can take several seconds to answer after a deploy.
+    updateBanner();
+    renderStart();
+    refreshCatalog();
+  } else {
+    try {
+      await loadCatalog();
+    } catch (err) {
       return err.code === 'PANTRY_UNKNOWN'
         ? renderMessage('Pantri tidak dikenali. Sila imbas poster QR di pantri.', 'Pantry not recognised. Please scan the QR poster at the pantry.')
         : renderMessage('Senarai barang tidak dapat dimuatkan. Semak sambungan internet.', 'The item list could not be loaded. Check the internet connection.', () => location.reload());
     }
+    updateBanner();
+    renderStart();
   }
-  updateBanner();
-  renderStart();
   await refreshPending();
   syncNow();
 
@@ -689,17 +721,7 @@ async function boot() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
   setInterval(() => { if (state.pending) syncNow(); }, 60 * 1000);
   // Pick up new items and photos every 5 minutes, but only between visits.
-  setInterval(async () => {
-    if (document.getElementById('student-id') && !document.getElementById('student-id').value) {
-      try {
-        const before = state.catalog.version;
-        await loadCatalog();
-        if (state.catalog.version !== before && document.getElementById('student-id')) renderStart();
-      } catch (err) {
-        // Keep the cached catalogue.
-      }
-    }
-  }, 5 * 60 * 1000);
+  setInterval(() => { if (idleOnStart()) refreshCatalog(); }, 5 * 60 * 1000);
 }
 
 if ('serviceWorker' in navigator) {

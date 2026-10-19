@@ -3,5 +3,5 @@
 window.APP_CONFIG = {
   apiUrl: 'https://script.google.com/macros/s/AKfycbyyhWf-E9CiUDLStoazoWXhg0cRLzd3_RYixFufS3aS_eux39ehnswkwh8QqUMqpkOh/exec',
   staffUrl: 'https://script.google.com/macros/s/AKfycbyDrHlZgISTgVhhI35MW-KOwnAXkks10Wj-9AZJ77ahIYO5EViH4ahiR2IYZ6nBTcsj/exec',
-  version: '0.2.0',
+  version: '0.2.1',
 };
