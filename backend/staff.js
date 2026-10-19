@@ -8,15 +8,17 @@ function doGet() {
     const message = errorBody_(err).error.en;
     return HtmlService.createHtmlOutput(
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-      '<div style="font-family:system-ui,sans-serif;max-width:480px;margin:48px auto;padding:0 16px">' +
-      '<h1 style="font-size:20px">Food Bank URHP: staff</h1><p>' + escapeHtml_(message) + '</p></div>'
-    ).setTitle('Food Bank URHP');
+      '<div style="font:15px/1.5 system-ui,-apple-system,sans-serif;max-width:420px;margin:72px auto;padding:0 20px;color:#111110">' +
+      '<p style="display:inline-block;margin:0 0 14px;padding:2px 8px;border-radius:999px;background:#eeeeea;color:#5d5d57;font-size:12px;font-weight:600">Staff</p>' +
+      '<h1 style="margin:0 0 8px;font-size:24px;letter-spacing:-0.02em">Food Bank UiTMCPP</h1>' +
+      '<p style="margin:0;color:#5d5d57">' + escapeHtml_(message) + '</p></div>'
+    ).setTitle('Food Bank UiTMCPP');
   }
   const page = HtmlService.createTemplateFromFile('backend/ui/staff');
   // JSON inside a <script> tag: escape "<" so no value can close the tag.
   page.boot = JSON.stringify({ me: me }).replace(/</g, '\\u003c');
   return page.evaluate()
-    .setTitle('Food Bank URHP: staff')
+    .setTitle('Food Bank UiTMCPP: staff')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 

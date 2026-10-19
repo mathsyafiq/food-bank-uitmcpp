@@ -170,15 +170,36 @@ function endVisit() {
   renderStart();
 }
 
+const APP_NAME = 'Food Bank UiTMCPP';
+
+// Fixed icon markup (never user data), turned into SVG elements.
+const ICONS = {
+  basket: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 10h15l-1.5 8.3a2 2 0 0 1-2 1.7H8a2 2 0 0 1-2-1.7z"/><path d="M9 10l2.5-5.5M15 10l-2.5-5.5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+};
+
+function icon(name) {
+  const holder = document.createElement('span');
+  holder.innerHTML = ICONS[name];
+  return holder.firstElementChild;
+}
+
+function brandBar() {
+  return el('div', { class: 'brand' },
+    el('span', { class: 'brand-mark', 'aria-hidden': 'true' }, icon('basket')),
+    el('span', { class: 'brand-name' }, APP_NAME),
+    pantryName() ? el('span', { class: 'pill' }, pantryName()) : null);
+}
+
 function screen(...children) {
   leaveScreen();
-  app.replaceChildren(...children);
+  app.replaceChildren(el('div', { class: 'screen' }, brandBar(), ...children));
   window.scrollTo(0, 0);
 }
 
 function footer() {
   return el('footer', null,
-    el('p', { id: 'status', class: 'muted' }, statusText()),
+    state.device ? el('p', { id: 'status', class: 'muted' }, statusText()) : null,
     el('p', null, state.device
       ? el('button', { class: 'link', onclick: renderSync }, 'Status penghantaran / Sync status')
       : el('button', { class: 'link', onclick: renderSetup }, 'Pantry device setup (staff)')));
@@ -240,7 +261,7 @@ function renderStart() {
     renderDetails(remembered && remembered.id === id ? remembered : null);
   });
   screen(
-    el('header', { class: 'top' }, el('h1', null, bi('Food Bank URHP', 'Ambil apa yang anda perlukan · Take what you need')), el('p', { class: 'pantry' }, pantryName())),
+    el('header', { class: 'top' }, el('h1', null, bi('Ambil apa yang anda perlukan', 'Take what you need'))),
     privacyNotice(),
     form,
     footer());
@@ -257,7 +278,6 @@ function renderDetails(remembered) {
   const remember = state.device ? null : el('input', { id: 'remember', type: 'checkbox', checked: !!remembered });
   const error = el('p', { class: 'error', role: 'alert' });
   const form = el('form', { class: 'card', novalidate: true },
-    el('p', { class: 'muted' }, 'ID: ' + StudentId.mask(state.student.id)),
     el('label', { for: 'name' }, bi('Nama penuh', 'Full name')), name,
     el('label', { for: 'faculty' }, bi('Fakulti', 'Faculty')), faculty,
     el('label', { class: 'check', for: 'consent' }, consent,
@@ -281,7 +301,8 @@ function renderDetails(remembered) {
     writeRemembered(remember && remember.checked ? state.student : null);
     renderBasket();
   });
-  screen(el('header', { class: 'top' }, el('h1', null, bi('Butiran anda', 'Your details')), el('p', { class: 'pantry' }, pantryName())),
+  screen(el('header', { class: 'top' }, el('h1', null, bi('Butiran anda', 'Your details')),
+    el('p', { class: 'subtle' }, 'ID ' + StudentId.mask(state.student.id))),
     privacyNotice(), form, footer());
   startIdleTimer();
   (prior.name ? faculty : name).focus();
@@ -293,11 +314,17 @@ function renderBasket() {
   const largeNotice = el('p', { class: 'notice warn', hidden: true },
     bi('Anda mengambil 10 atau lebih bagi satu barang. Ini dibenarkan, tetapi staf akan menyemaknya.', 'You are taking 10 or more of one item. That is allowed, but staff will review it.'));
   const done = el('button', { class: 'primary big', disabled: true }, '');
-  const grid = el('div', { class: 'grid', id: 'grid' }, state.catalog.items.map((item) =>
-    el('button', { class: 'tile', 'aria-label': 'Tambah / Add ' + item.name, onclick: () => add(item.item_id) },
+  const tiles = {}; // item_id -> {tile, count}: the badge shows how many are in the basket.
+  const grid = el('div', { class: 'grid', id: 'grid' }, state.catalog.items.map((item) => {
+    const count = el('span', { class: 'tile-count', 'aria-hidden': 'true' });
+    const tile = el('button', { class: 'tile', 'aria-label': 'Tambah / Add ' + item.name, onclick: () => add(item.item_id) },
       photoFor(item),
       el('span', { class: 'tile-name' }, item.name),
-      item.unit ? el('span', { class: 'muted' }, item.unit) : null)));
+      item.unit ? el('span', { class: 'muted' }, item.unit) : null,
+      count);
+    tiles[item.item_id] = { tile, count };
+    return tile;
+  }));
 
   const video = el('video', { class: 'camera', playsinline: true, muted: true, hidden: true, 'aria-label': 'Kamera / Camera' });
   const cameraButton = cameraAvailable()
@@ -359,18 +386,46 @@ function renderBasket() {
     grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  const lines = new Map(); // item_id -> <li>. Lines are updated in place so only a new line animates in.
+  const emptyLine = el('li', { class: 'empty' }, bi('Bakul kosong. Imbas atau pilih barang di bawah.', 'Your basket is empty. Scan or choose items below.'));
+  const qtyOf = (itemId) => (state.basket.filter((l) => l.item_id === itemId)[0] || { qty: 0 }).qty;
+
+  function makeLine(itemId) {
+    const item = itemById(itemId);
+    return el('li', { class: 'line' },
+      el('span', { class: 'line-name' }, item.name),
+      el('span', { class: 'stepper' },
+        el('button', { class: 'round', 'aria-label': 'Kurang / Less ' + item.name, onclick: () => change(itemId, -1) }, '−'),
+        el('span', { class: 'qty', 'aria-live': 'polite' }),
+        el('button', { class: 'round', 'aria-label': 'Tambah / More ' + item.name, onclick: () => change(itemId, 1) }, '+')),
+      el('button', { class: 'round ghost', 'aria-label': 'Buang / Remove ' + item.name, onclick: () => change(itemId, -qtyOf(itemId)) }, '×'));
+  }
+
   function draw() {
-    list.replaceChildren(...state.basket.map((line) => {
-      const item = itemById(line.item_id);
-      return el('li', null,
-        el('span', { class: 'line-name' }, item.name),
-        el('span', { class: 'stepper' },
-          el('button', { class: 'round', 'aria-label': 'Kurang / Less ' + item.name, onclick: () => change(line.item_id, -1) }, '−'),
-          el('span', { class: 'qty', 'aria-live': 'polite' }, String(line.qty)),
-          el('button', { class: 'round', 'aria-label': 'Tambah / More ' + item.name, onclick: () => change(line.item_id, 1) }, '+')),
-        el('button', { class: 'link', 'aria-label': 'Buang / Remove ' + item.name, onclick: () => change(line.item_id, -line.qty) }, 'Buang / Remove'));
-    }));
-    if (!state.basket.length) list.append(el('li', { class: 'muted empty' }, bi('Bakul kosong. Imbas atau pilih barang di bawah.', 'Your basket is empty. Scan or choose items below.')));
+    lines.forEach((li, itemId) => {
+      if (!qtyOf(itemId)) {
+        li.remove();
+        lines.delete(itemId);
+      }
+    });
+    if (state.basket.length) emptyLine.remove();
+    else if (!emptyLine.isConnected) list.append(emptyLine);
+    state.basket.forEach((line) => {
+      if (!lines.has(line.item_id)) {
+        lines.set(line.item_id, makeLine(line.item_id));
+        list.append(lines.get(line.item_id));
+      }
+      lines.get(line.item_id).querySelector('.qty').textContent = String(line.qty);
+    });
+    Object.keys(tiles).forEach((itemId) => {
+      const qty = qtyOf(itemId);
+      if (qty) {
+        tiles[itemId].tile.setAttribute('data-in-basket', '');
+        tiles[itemId].count.textContent = String(qty);
+      } else {
+        tiles[itemId].tile.removeAttribute('data-in-basket');
+      }
+    });
     const count = state.basket.reduce((sum, l) => sum + l.qty, 0);
     largeNotice.hidden = !state.basket.some((l) => l.qty >= (settings().large_qty_threshold || 10));
     done.disabled = count === 0;
@@ -382,7 +437,7 @@ function renderBasket() {
   screen(
     el('header', { class: 'top' },
       el('h1', null, bi('Bakul anda', 'Your basket')),
-      el('p', { class: 'pantry' }, pantryName() + ' · ID ' + StudentId.mask(state.student.id))),
+      el('p', { class: 'subtle' }, 'ID ' + StudentId.mask(state.student.id))),
     el('section', { class: 'card' }, list, largeNotice, message,
       el('button', { class: 'link', onclick: endVisit }, bi('Batal lawatan', 'Cancel visit'))),
     el('section', { class: 'card' }, cameraButton, video,
@@ -467,13 +522,14 @@ function renderThanks(savedOffline) {
   state.student = null;
   state.basket = [];
   state.unknown = [];
-  screen(el('section', { class: 'card center thanks' },
-    el('p', { class: 'big-mark', 'aria-hidden': 'true' }, '✓'),
+  screen(el('section', { class: 'card thanks' },
+    el('div', { class: 'success-mark', 'aria-hidden': 'true' }, icon('check')),
     bi('Terima kasih!', 'Thank you!', 'h1'),
     savedOffline
       ? bi('Lawatan anda disimpan pada peranti ini dan akan dihantar apabila ada sambungan.', 'Your visit is saved on this device and will be sent when the connection is back.', 'p')
       : bi('Lawatan anda telah direkodkan.', 'Your visit has been recorded.', 'p'),
-    el('button', { class: 'secondary', onclick: renderStart }, bi('Seterusnya', 'Next person'))),
+    el('button', { class: 'secondary', onclick: renderStart }, bi('Seterusnya', 'Next person')),
+    el('div', { class: 'countdown', 'aria-hidden': 'true' }, el('span', { style: 'animation-duration:' + seconds + 's' }))),
   footer());
   idleTimer = setTimeout(renderStart, seconds * 1000);
 }
@@ -484,9 +540,14 @@ function renderSetup() {
   const code = el('input', { id: 'code', autocomplete: 'off', autocapitalize: 'characters', maxlength: '9', placeholder: 'ABCD-EFGH' });
   const error = el('p', { class: 'error', role: 'alert' });
   const save = el('button', { class: 'primary', type: 'submit' }, 'Set up this device');
+  const staffUrl = window.APP_CONFIG.staffUrl;
   const form = el('form', { class: 'card', novalidate: true },
-    el('p', null, 'Staff: in the staff app, open Devices and get a setup code for this pantry. The code works once, for 10 minutes.'),
-    el('label', { for: 'code' }, 'Setup code'), code, error, save,
+    el('ol', { class: 'steps' },
+      el('li', null, 'Sign in to the staff app with your UiTM account.'),
+      el('li', null, 'Open Devices and get a setup code for this pantry. It works once, for 10 minutes.'),
+      el('li', null, 'Enter the code below.')),
+    staffUrl ? el('a', { class: 'secondary', href: staffUrl, target: '_blank', rel: 'noopener' }, 'Staff sign-in (opens the staff app)') : null,
+    el('label', { for: 'code', style: 'margin-top:24px' }, 'Setup code'), code, error, save,
     el('button', { class: 'link', type: 'button', onclick: renderStart }, 'Back'));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -506,7 +567,8 @@ function renderSetup() {
       error.replaceChildren(errorText(err));
     }
   });
-  screen(el('header', { class: 'top' }, el('h1', null, 'Pantry device setup')), form);
+  screen(el('header', { class: 'top' }, el('h1', null, 'Pantry device setup'),
+    el('p', { class: 'subtle' }, 'For staff. Turns this laptop or phone into a pantry device that keeps working offline.')), form);
   code.focus();
 }
 
@@ -540,7 +602,7 @@ async function renderSync() {
     await forgetDevice();
   } }, 'Remove pantry setup from this device');
   screen(
-    el('header', { class: 'top' }, el('h1', null, 'Status penghantaran / Sync status'), el('p', { class: 'pantry' }, statusText())),
+    el('header', { class: 'top' }, el('h1', null, bi('Status penghantaran', 'Sync status')), el('p', { class: 'subtle' }, statusText())),
     el('section', { class: 'card' },
       entries.length
         ? el('table', null, el('thead', null, el('tr', null, el('th', null, 'Time'), el('th', null, 'Items'), el('th', null, 'Status'), el('th'))), el('tbody', null, rows))

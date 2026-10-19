@@ -1,4 +1,4 @@
-# Food Bank URHP
+# Food Bank UiTMCPP
 
 Inventory and self-service checkout for the UiTM food bank. Students record what they take; staff receive donations into a central store, move stock to the pantries, and get low-stock emails. Pantry devices keep working through short internet outages.
 

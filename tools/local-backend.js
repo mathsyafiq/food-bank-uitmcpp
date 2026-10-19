@@ -80,9 +80,15 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': TYPES['.html'] });
     return res.end(staffPage());
   }
+  if (url.pathname === '/sw.js') {
+    // No offline cache in the simulator, so edits always show on reload. The real sw.js is used on GitHub Pages.
+    res.writeHead(200, { 'Content-Type': TYPES['.js'], 'Cache-Control': 'no-store' });
+    return res.end(`self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))));`);
+  }
   if (url.pathname === '/config.js') {
     res.writeHead(200, { 'Content-Type': TYPES['.js'], 'Cache-Control': 'no-store' });
-    return res.end(`window.APP_CONFIG = { apiUrl: '/api', version: 'local' };`);
+    return res.end(`window.APP_CONFIG = { apiUrl: '/api', staffUrl: '/staff', version: 'local' };`);
   }
   const isCore = url.pathname.startsWith('/core/');
   const base = path.join(ROOT, isCore ? 'core' : 'web');

@@ -64,6 +64,14 @@ Approved on 2026-10-19 when the owner approved the plan and asked to build it.
 | 26 | "Sort order" is labelled "Position on the students' screen": 1 shows first; blank items follow in A–Z order. | The old label did not say what it controlled. |
 | 27 | Staff can photograph a barcode on a phone and have the digits read and linked automatically, using the phone's built-in reader or the student app's ZXing file. On a laptop the USB scanner types into the barcode box as before. | Staff pages run inside Google's frame, where live camera scanning is uncertain; reading a still photo needs no camera permission. Lets one person register a whole item on a phone. |
 
+## 2026-10-19: Name, redesign and staff link
+
+| # | Decision | Why |
+|---|---|---|
+| 28 | The app is called **Food Bank UiTMCPP** in every screen, the PWA name, emails and posters. The web address (`food-bank-urhp`), the repo and the Drive folder and Sheet names are unchanged. | Owner's request. Changing the address would break printed QR posters, home-screen installs and pantry devices. |
+| 29 | Redesign following Emil Kowalski's design-engineering principles: neutral palette with a violet brand mark, black primary buttons, soft shadow borders, dark mode, press feedback (`scale(0.97)`) on everything tappable, hover effects only on mouse devices, motion limited to transform and opacity with a strong ease-out, short screen fades (180 ms), quantity badges on item tiles, and a success mark plus reset countdown on the thank-you screen. Nothing animates on keyboard or scanner input, and `prefers-reduced-motion` keeps fades only. | Owner's request; makes the frequent student flow feel responsive and calm. |
+| 30 | The pantry device setup page links to the staff app ("Staff sign-in"), set in `web/config.js` as `staffUrl`. | Staff need the staff app to get a setup code; this saves looking for the link. |
+
 ## Deferred
 
 - **DailySummary tab and yearly archive** (PLAN 5.6): not needed until the ledger grows. Reports read the ledger by date slice for now. Build before the first year ends.

@@ -28,8 +28,8 @@ function sendMail_(to, subject, html) {
   MailApp.sendEmail({
     to: to.join(','),
     subject: subject,
-    htmlBody: html + link + '<p style="color:#666">Food Bank URHP. Sent automatically.</p>',
-    name: 'Food Bank URHP',
+    htmlBody: html + link + '<p style="color:#666">Food Bank UiTMCPP. Sent automatically.</p>',
+    name: 'Food Bank UiTMCPP',
   });
   return true;
 }

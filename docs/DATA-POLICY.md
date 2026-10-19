@@ -1,6 +1,6 @@
 # Dasar Pengendalian Data · Data Handling Policy
 
-Food Bank URHP · Versi 1 · 19 Oktober 2026 · **Draf.** Perkara bertanda **(sahkan)** perlu disahkan oleh pejabat undang-undang atau bahagian ICT UiTM. Senarai penuh di bahagian akhir.
+Food Bank UiTMCPP · Versi 1 · 19 Oktober 2026 · **Draf.** Perkara bertanda **(sahkan)** perlu disahkan oleh pejabat undang-undang atau bahagian ICT UiTM. Senarai penuh di bahagian akhir.
 
 Version 1 · 19 October 2026 · **Draft.** Items marked **(to confirm)** need confirmation from UiTM's legal office or ICT division. The full list is at the end.
 
@@ -12,7 +12,7 @@ Bahasa Melayu dahulu, diikuti English. · Bahasa Melayu first, then English.
 
 ### 1. Skop
 
-Dasar ini meliputi data peribadi dalam Food Bank URHP, sistem inventori dan daftar keluar layan diri bank makanan UiTM: aplikasi pelajar, aplikasi staf dan Google Sheet (hamparan) di belakangnya. Ia terpakai kepada pemilik akaun sistem, admin dan staf. Pengawal data ialah UiTM melalui unit yang mengurus bank makanan **(sahkan: nama unit dan pegawai yang bertanggungjawab)**.
+Dasar ini meliputi data peribadi dalam Food Bank UiTMCPP, sistem inventori dan daftar keluar layan diri bank makanan UiTM: aplikasi pelajar, aplikasi staf dan Google Sheet (hamparan) di belakangnya. Ia terpakai kepada pemilik akaun sistem, admin dan staf. Pengawal data ialah UiTM melalui unit yang mengurus bank makanan **(sahkan: nama unit dan pegawai yang bertanggungjawab)**.
 
 ### 2. Data yang dikumpul
 
@@ -109,7 +109,7 @@ Contoh: eksport dihantar kepada orang yang salah, peranti pantri yang hilang den
 
 ### 1. Scope
 
-This policy covers personal data in Food Bank URHP, UiTM's food bank inventory and self-service checkout system: the student app, the staff app and the Google Sheet behind them. It applies to the owner of the system account, admins and staff. The data controller is UiTM, through the unit that runs the food bank **(to confirm: the unit's name and the responsible officer)**.
+This policy covers personal data in Food Bank UiTMCPP, UiTM's food bank inventory and self-service checkout system: the student app, the staff app and the Google Sheet behind them. It applies to the owner of the system account, admins and staff. The data controller is UiTM, through the unit that runs the food bank **(to confirm: the unit's name and the responsible officer)**.
 
 ### 2. What we collect
 
