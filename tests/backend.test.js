@@ -256,7 +256,8 @@ test('an admin can look up a student and export the list for HEP, and it is audi
   assert.equal(found.student.name, 'Ali bin Abu');
   assert.equal(found.visits[0].lines, 'Rice 1kg × 2');
   const csv = app.fn('adminStudentsCsv')();
-  assert.match(csv.csv, /2023123456,Ali bin Abu,Fakulti Sains Komputer/);
+  assert.match(csv.csv, /^student_id,name,program,faculty,on_namelist,/);
+  assert.match(csv.csv, /2023123456,Ali bin Abu,,Fakulti Sains Komputer,no,/);
   assert.deepEqual(app.db.tables.AuditLog.map((a) => a.action), ['student_lookup', 'students_export']);
 });
 

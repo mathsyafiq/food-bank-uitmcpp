@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS = {
   inactivity_seconds: 60,
   thanks_seconds: 5,
   public_submits_per_minute: 60,
+  public_lookups_per_minute: 60,
+  namelist_id: '',
   pwa_url: '',
   staff_url: '',
   // Choices for the Items drop-downs, separated by commas. Admins edit them on the staff Setup page.
@@ -32,6 +34,7 @@ const SETTING_LIMITS = {
   inactivity_seconds: [15, 600],
   thanks_seconds: [2, 60],
   public_submits_per_minute: [5, 1000],
+  public_lookups_per_minute: [5, 1000],
 };
 
 function validSetting_(key, value) {
@@ -49,12 +52,20 @@ function validSetting_(key, value) {
       return false;
     }
   }
+  if (key === 'namelist_id') return value === '' || /^[A-Za-z0-9_-]{20,}$/.test(value);
   if (key === 'pwa_url' || key === 'staff_url') return value === '' || /^https:\/\/\S+$/.test(value);
   if (key === 'item_categories' || key === 'item_units') {
     const items = listSetting_(value);
     return items.length >= 1 && items.length <= 40 && items.every((s) => s.length <= 30 && !/^[=+\-@]/.test(s));
   }
   return true;
+}
+
+/** Saves one setting. Call inside Db.withLock. */
+function writeSetting_(key, value) {
+  const existing = Db.read('Settings').filter((r) => String(r.key).trim() === key)[0];
+  if (existing) Db.writeRow('Settings', Object.assign(existing, { value: String(value) }));
+  else Db.append('Settings', [{ key: key, value: String(value) }]);
 }
 
 function getSettings_() {

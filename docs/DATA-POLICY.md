@@ -17,7 +17,7 @@ Dasar ini meliputi data peribadi dalam Food Bank UiTMCPP, sistem inventori dan d
 ### 2. Data yang dikumpul
 
 Daripada pelajar, pada setiap lawatan:
-- ID pelajar, nama penuh dan fakulti (dipilih daripada senarai);
+- ID pelajar, nama penuh dan program (daripada senarai nama pelajar yang diimport ke sistem); atau, bagi pelajar yang tiada dalam senarai nama, nama penuh dan fakulti (dipilih daripada senarai);
 - persetujuan (kotak tanda) dan masanya;
 - barang dan kuantiti yang diambil, dengan masa dan pantri.
 
@@ -35,7 +35,8 @@ Data tidak digunakan untuk tujuan lain. Tiada had lawatan atau kuantiti, jadi ti
 ### 4. Tempat data disimpan
 
 - **Google Sheet dan projek Apps Script** milik akaun Google Workspace institusi UiTM, bukan akaun peribadi. Google mungkin menyimpan data di luar Malaysia **(sahkan dengan ICT bahawa perjanjian Google Workspace UiTM meliputi perkara ini)**.
-- **Tab Students:** ID pelajar, nama, fakulti, masa persetujuan, tarikh lawatan dan bilangan lawatan.
+- **Tab Students:** ID pelajar, nama, program atau fakulti, sama ada pelajar dalam senarai nama, masa persetujuan, tarikh lawatan dan bilangan lawatan. Senarai nama diimport oleh admin daripada Google Sheet milik akaun sistem; hanya lajur ID, nama dan program diambil.
+- **Skrin aplikasi pelajar:** selepas ID dimasukkan, nama dan program pelajar dipaparkan supaya pelajar boleh mengesahkan "Ini saya". Ini bermakna sesiapa yang mengetahui ID seseorang pelajar boleh melihat nama dan programnya. Pemilik sistem menerima risiko ini pada 19 Oktober 2026; carian dari telefon pelajar dihadkan bilangannya setiap minit **(sahkan dengan pejabat undang-undang)**.
 - **Tab Visits:** setiap lawatan dikaitkan dengan pelajar hanya melalui kod berkunci (HMAC-SHA256). Kuncinya disimpan dalam tetapan projek Apps Script (Script Properties), tidak dalam Sheet, aplikasi atau repositori kod.
 - **Lejar stok (Transactions) dan e-mel amaran:** tiada data pelajar.
 - **Peranti pantri** (komputer riba dan telefon pantri) menyimpan lawatan hanya sehingga ia dihantar, kemudian memadamnya. Lawatan yang ditolak oleh pelayan kekal pada peranti, bertanda "Needs staff", sehingga staf menghantar semula atau membuangnya di skrin Sync peranti itu. Peranti tidak pernah menyimpan senarai pelajar.
@@ -73,7 +74,7 @@ Tab AuditLog merekodkan masa dan e-mel staf bagi setiap carian pelajar (sebahagi
 
 ### 8. Eksport untuk HEP
 
-- Hanya admin boleh mengeksport, dari halaman Students dalam aplikasi staf. Fail mengandungi ID pelajar, nama, fakulti, tarikh lawatan pertama dan terakhir, dan bilangan lawatan bagi pelajar yang datang dalam setahun lepas. Setiap eksport direkodkan dalam AuditLog.
+- Hanya admin boleh mengeksport, dari halaman Students dalam aplikasi staf. Fail mengandungi ID pelajar, nama, program, fakulti, sama ada dalam senarai nama, tarikh lawatan pertama dan terakhir, dan bilangan lawatan bagi pelajar yang datang dalam setahun lepas. Setiap eksport direkodkan dalam AuditLog.
 - Hantar hanya kepada pegawai HEP yang dinamakan melalui saluran UiTM (e-mel UiTM atau perkongsian Google Drive UiTM), bukan WhatsApp, e-mel peribadi atau pemacu USB.
 - Padam salinan anda (folder Downloads dan tong sampah) selepas menghantar.
 - HEP menyimpan dan memadam fail mengikut peraturannya sendiri **(sahkan tempoh simpanan dengan HEP)**.
@@ -114,7 +115,7 @@ This policy covers personal data in Food Bank UiTMCPP, UiTM's food bank inventor
 ### 2. What we collect
 
 From students, at every visit:
-- student ID, full name and faculty (chosen from a list);
+- student ID, full name and programme (from the student namelist imported into the system); or, for students not on the namelist, full name and faculty (chosen from a list);
 - consent (a tick box) and when it was given;
 - the items and quantities taken, with the time and the pantry.
 
@@ -132,7 +133,8 @@ The data is not used for anything else. There are no visit or quantity limits, s
 ### 4. Where it is kept
 
 - **Google Sheet and Apps Script project** owned by a UiTM institutional Google Workspace account, not a personal one. Google may store the data outside Malaysia **(to confirm with ICT that UiTM's Google Workspace agreement covers this)**.
-- **Students tab:** student ID, name, faculty, consent time, visit dates and visit count.
+- **Students tab:** student ID, name, programme or faculty, whether the student is on the namelist, consent time, visit dates and visit count. Admins import the namelist from a Google Sheet owned by the system account; only the ID, name and programme columns are taken.
+- **Student app screens:** after an ID is entered, the student's name and programme are shown so the student can confirm "this is me". This means anyone who knows a student's ID can see their name and programme. The system owner accepted this risk on 19 October 2026; look-ups from students' own phones are limited per minute **(to confirm with the legal office)**.
 - **Visits tab:** each visit is linked to a student only by a keyed code (HMAC-SHA256). The key is kept in the Apps Script project's settings (Script Properties), never in the Sheet, the apps or the code repository.
 - **Stock ledger (Transactions) and email alerts:** no student data.
 - **Pantry devices** (the pantry laptop and pantry phones) hold a visit only until it is sent, then delete it. A visit the server rejects stays on the device, marked "Needs staff", until staff resend or discard it on that device's Sync screen. Devices never hold a list of students.
@@ -170,7 +172,7 @@ The AuditLog tab records the time and staff email for each student look-up (a sh
 
 ### 8. Exports for HEP
 
-- Only admins can export, from the Students page of the staff app. The file lists student ID, name, faculty, first and last visit dates and number of visits for students seen in the last year. Every export is recorded in AuditLog.
+- Only admins can export, from the Students page of the staff app. The file lists student ID, name, programme, faculty, whether on the namelist, first and last visit dates and number of visits for students seen in the last year. Every export is recorded in AuditLog.
 - Send it only to the named HEP officer through UiTM channels (UiTM email or a UiTM Google Drive share), never by WhatsApp, personal email or USB drive.
 - Delete your copy (Downloads folder and trash) after sending.
 - HEP keeps and deletes the file under its own rules **(to confirm the retention period with HEP)**.

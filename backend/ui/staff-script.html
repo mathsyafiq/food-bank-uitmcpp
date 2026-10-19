@@ -679,7 +679,7 @@
           ['Time', 'Location', 'Visit ID', { label: 'Lines', num: true }, 'Large lines', 'Notes'],
           report.rows.map((r) => el('tr', null, el('td', null, r.occurred_at), el('td', null, r.location), el('td', { class: 'muted' }, r.visit_id),
             el('td', { class: 'num' }, String(r.lines)), el('td', null, r.large_lines),
-            el('td', null, [r.flagged ? 'flagged' : '', r.unverified_student ? 'ID not on roster' : '', r.voided ? 'voided' : '', r.source === 'PUBLIC' ? 'student phone' : 'pantry device'].filter(Boolean).join(' · '))))));
+            el('td', null, [r.flagged ? 'flagged' : '', r.unverified_student ? 'not on namelist' : '', r.voided ? 'voided' : '', r.source === 'PUBLIC' ? 'student phone' : 'pantry device'].filter(Boolean).join(' · '))))));
       }
     }));
     csvButton.addEventListener('click', () => act(csvButton, async () => {
@@ -748,7 +748,7 @@
       const s = result.student;
       out.replaceChildren(
         s ? el('div', { class: 'card' },
-          el('p', null, el('b', null, s.name), ' · ', s.student_id, ' · ', s.faculty),
+          el('p', null, el('b', null, s.name), ' · ', s.student_id, ' · ', s.program || s.faculty, s.source === 'ROSTER' ? ' · on namelist' : ''),
           el('p', { class: 'muted' }, s.visit_count + ' visit(s). First ' + s.first_visit_at + ', last ' + s.last_visit_at + '.')) : null,
         result.visits.length ? table(['Time', 'Location', 'Items', 'Notes'], result.visits.map((v) => el('tr', null,
           el('td', null, v.occurred_at), el('td', null, v.location), el('td', null, v.lines),
@@ -808,7 +808,7 @@
   // ---------- Admin: setup ----------
 
   const SETTING_LABELS = {
-    student_mode: ['Student check', 'SELF: students give ID, name and faculty every visit. ROSTER: the ID must be on the imported roster.'],
+    student_mode: ['Student check', 'SELF: students give ID, name and faculty every visit. ROSTER: name and programme come from the imported namelist (see Student namelist above); IDs not on it give their details.'],
     student_id_pattern: ['Student ID format', 'A regular expression. Default ^\\d{10}$ means 10 digits.'],
     retention_days: ['Keep visit records (days)', 'PDPA retention. Default 365.'],
     large_qty_threshold: ['Large-quantity flag', 'A line at or above this is flagged for review, never blocked.'],
@@ -817,11 +817,76 @@
     inactivity_seconds: ['Reset after inactivity (seconds)', 'The student app clears the basket after this long.'],
     thanks_seconds: ['Thank-you screen (seconds)', ''],
     public_submits_per_minute: ['Student-phone visits per minute (limit)', 'Slows scripted spam. Far above real traffic.'],
+    public_lookups_per_minute: ['Student-phone name look-ups per minute (limit)', 'Slows anyone trying IDs to collect names. Pantry devices are not limited.'],
     pwa_url: ['Student app link', 'Shown on the Devices page and printed on the QR poster.'],
     staff_url: ['Staff app link', 'Added to alert emails.'],
     item_categories: ['Item categories', 'The Category drop-down on the Items page. Separate with commas.'],
     item_units: ['Item units', 'The Unit drop-down on the Items page, shown to students under the item name. Separate with commas.'],
   };
+
+  /** Setup card: import the student namelist from a Google Sheet so students only key in their ID. */
+  function namelistCard() {
+    const savedId = state.data.settings.namelist_id;
+    const link = el('input', {
+      type: 'url', placeholder: 'https://docs.google.com/spreadsheets/d/…',
+      value: savedId ? 'https://docs.google.com/spreadsheets/d/' + savedId + '/edit' : '',
+    });
+    const previewButton = el('button', { class: 'secondary' }, 'Preview');
+    const box = el('div');
+    const preview = (extra) => act(previewButton, async () => showPreview(await call('adminPreviewNamelist', Object.assign({ link: link.value }, extra))));
+    previewButton.addEventListener('click', () => preview({}));
+
+    function showPreview(p) {
+      const tab = el('select', null, p.tabs.map((t) => el('option', { value: t, selected: t === p.tab }, t)));
+      const headerRow = el('input', { type: 'number', min: '1', max: '50', class: 'qty', value: String(p.header_row) });
+      const allowed = p.headers.filter((h) => h.allowed);
+      const columnSelect = (guess, optional) => el('select', null,
+        el('option', { value: '', selected: guess === undefined || guess === null }, optional ? '(none)' : 'Choose a column'),
+        allowed.map((h) => el('option', { value: String(h.index), selected: h.index === guess }, h.label)));
+      const idCol = columnSelect(p.columns.id);
+      const nameCol = columnSelect(p.columns.name);
+      const programCol = columnSelect(p.columns.program, true);
+      const sample = el('div');
+      const drawSample = () => {
+        const cols = [['Student ID', idCol], ['Name', nameCol], ['Programme', programCol]].filter((c) => c[1].value !== '');
+        sample.replaceChildren(table(cols.map((c) => c[0]), p.sample.map((row) => el('tr', null, cols.map((c) => el('td', null, row[Number(c[1].value)]))))));
+      };
+      [idCol, nameCol, programCol].forEach((select) => select.addEventListener('change', drawSample));
+      drawSample();
+      const again = el('button', { class: 'secondary' }, 'Preview again');
+      again.addEventListener('click', () => preview({ tab: tab.value, header_row: headerRow.value }));
+      const go = el('button', { class: 'primary' }, 'Import and use the namelist');
+      go.addEventListener('click', () => act(go, async () => {
+        if (!idCol.value || !nameCol.value) throw new Error('Choose the student ID and name columns.');
+        if (!confirm('Import the students in "' + p.file_name + '"? Only student ID, name and programme are kept. Students then only key in their ID; anyone not on the list types their details.')) return;
+        const result = await call('adminImportNamelist', {
+          link: link.value, tab: tab.value, header_row: headerRow.value, id_col: idCol.value, name_col: nameCol.value, program_col: programCol.value,
+        });
+        await reload();
+        show('setup');
+        toast('Imported ' + result.imported + ' students.' +
+          (result.invalid ? ' ' + result.invalid + ' row(s) skipped (ID not in the student ID format).' : '') +
+          (result.duplicates ? ' ' + result.duplicates + ' repeated ID(s) skipped.' : '') +
+          ' Students now only key in their ID.');
+      }));
+      box.replaceChildren(
+        el('p', null, el('b', null, p.file_name), el('span', { class: 'muted' }, ' · ' + p.total_rows + ' rows')),
+        el('div', { class: 'row' }, field('Tab', tab), field('Header row', headerRow, 'The row with the column names.')),
+        el('div', { class: 'row' }, field('Student ID column', idCol), field('Name column', nameCol), field('Programme column', programCol)),
+        el('h3', { style: 'margin-top:16px' }, 'First rows'),
+        sample,
+        el('p', { class: 'muted' }, 'Columns such as IC or phone numbers are never offered and never imported.'),
+        el('div', { class: 'actions' }, go, again));
+    }
+
+    return el('div', { class: 'card' }, el('h3', null, 'Student namelist'),
+      el('p', { class: 'muted' }, state.data.settings.student_mode === 'ROSTER'
+        ? 'In use: students key in their ID and see their name and programme from the namelist. Import again each semester to refresh it.'
+        : 'Import the namelist (a Google Sheet the owner account can open) so students only key in their ID. Students not on it type their details.'),
+      el('div', { class: 'row' }, field('Namelist link', link)),
+      el('div', { class: 'actions' }, previewButton),
+      box);
+  }
 
   function renderSetup() {
     // Locations
@@ -908,6 +973,7 @@
         el('div', { class: 'row' }, field('Code', facCode), field('Name (BM)', facMs), field('Name (English)', facEn)),
         el('p', { class: 'muted' }, 'Saving an existing code updates it.'),
         el('div', { class: 'actions' }, addFac)),
+      namelistCard(),
       el('div', { class: 'card' }, el('h3', null, 'Settings'), settingRows, el('div', { class: 'actions' }, saveSettings)),
       el('div', { class: 'card' }, el('h3', null, 'Print'),
         el('p', { class: 'muted' }, 'A QR poster for each active pantry, for students using their own phones, and barcode labels for items that have no barcode of their own.'),

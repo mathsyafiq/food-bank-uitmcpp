@@ -170,6 +170,18 @@ const Db = (() => {
       .map((row, i) => toObject(name, row, start + 2 + i));
   }
 
+  /** Adds header cells for columns added to SCHEMA after the tab was created, at the end of the row. */
+  function ensureHeaders(name) {
+    const s = sheet(name);
+    const cols = columns(name);
+    const current = s.getRange(1, 1, 1, cols.length).getValues()[0];
+    cols.forEach((field, i) => {
+      if (current[i] !== '') return;
+      s.getRange(1, i + 1).setValue(field).setFontWeight('bold');
+      if (TEXT_COLUMNS.indexOf(field) >= 0) s.getRange(2, i + 1, s.getMaxRows() - 1, 1).setNumberFormat('@');
+    });
+  }
+
   /** Runs fn while holding the script lock, so writes never interleave. */
   function withLock(fn) {
     const lock = LockService.getScriptLock();
@@ -190,6 +202,6 @@ const Db = (() => {
 
   return {
     spreadsheet, read, readColumns, readRow, append, writeRow, writeAll, writeColumn,
-    findRow, findRows, deleteRows, slice, withLock, forget,
+    findRow, findRows, deleteRows, slice, withLock, forget, ensureHeaders,
   };
 })();

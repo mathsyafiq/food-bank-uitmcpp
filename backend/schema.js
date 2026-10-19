@@ -20,7 +20,7 @@ const SCHEMA = {
   ArchiveTotals: ['item_id', 'location_id', 'archived_sum', 'archived_through'],
   Students: [
     'student_key', 'student_id', 'name', 'faculty_code', 'source',
-    'consent_at', 'first_visit_at', 'last_visit_at', 'visit_count',
+    'consent_at', 'first_visit_at', 'last_visit_at', 'visit_count', 'program',
   ],
   Faculties: ['faculty_code', 'name_ms', 'name_en', 'active'],
   Staff: ['email', 'name', 'role', 'receives_alerts', 'active'],

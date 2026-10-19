@@ -29,6 +29,22 @@ t.Faculties.push(
 );
 t.Staff.push({ email: STAFF_EMAIL, name: 'Demo admin', role: 'admin', receives_alerts: true, active: true });
 t.Settings.push({ key: 'pwa_url', value: 'http://localhost:' + PORT + '/?p=P1' });
+// A made-up namelist for trying the import: staff Setup > Student namelist, paste the link printed below.
+const DEMO_NAMELIST = '1DemoNamelistAbcdefghijklmnopqrstuvwxyz';
+app.books[DEMO_NAMELIST] = {
+  name: 'Demo namelist (made-up students)',
+  tabs: {
+    Sheet1: [
+      ['SENARAI NAMA RESIDEN KOLEJ (DEMO)', '', '', '', ''],
+      ['', '', '', '', ''],
+      ['BIL', 'NO. PELAJAR', 'NAMA PELAJAR', 'NO. KP', 'PROGRAM'],
+      ['1', '2024000001', 'AHMAD FAIZ BIN RAHMAN', '000000-00-0001', 'CS230'],
+      ['2', '2024000002', 'NUR AINA BINTI ISMAIL', '000000-00-0002', 'AS120'],
+      ['3', '2024000003', 'LIM WEI JIE', '000000-00-0003', 'BA232'],
+    ],
+  },
+};
+console.log('Demo namelist link: https://docs.google.com/spreadsheets/d/' + DEMO_NAMELIST + '/edit');
 
 function staffPage() {
   const read = (name) => fs.readFileSync(path.join(ROOT, name + '.html'), 'utf8');

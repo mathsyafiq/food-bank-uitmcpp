@@ -73,7 +73,15 @@ Approved on 2026-10-19 when the owner approved the plan and asked to build it.
 | 30 | The pantry device setup page links to the staff app ("Staff sign-in"), set in `web/config.js` as `staffUrl`. | Staff need the staff app to get a setup code; this saves looking for the link. |
 | 31 | The web address moves to `https://mathsyafiq.github.io/food-bank-uitmcpp/` (repo `mathsyafiq/food-bank-uitmcpp`), replacing decision 28's "address unchanged". The old address stops working. A `pwa_url` setting still holding the old address is ignored, and saving the Setup form stores the default links blank so they follow `APP_URLS`. | Owner's request, made before any poster was printed or device set up, so nothing in use breaks. |
 
+## 2026-10-19: Student namelist
+
+| # | Decision | Why |
+|---|---|---|
+| 32 | Admins import the student namelist (a Google Sheet the owner account can open, for example "Namelist RESIDEN KOLEJ 20264") from the staff Setup page. The import finds the header row and the ID, name and programme columns, shows a preview, and keeps only those three columns; IC, phone, email and address columns are never offered. Importing switches `student_mode` to ROSTER. Students key in only their ID and confirm "Ya, ini saya", which also records consent. IDs not on the namelist give their name and faculty as before, and those visits show "not on namelist" in reports. | Owner's request: students should not have to type details. The import runs inside Apps Script with the existing permission, so the list never leaves Google. |
+| 33 | The student's full name and programme are shown on every device after the ID is entered, including students' own phones, and on the thank-you screen: "Terima kasih [Nama]. Selamat menjamu selera!". The owner accepted that anyone with the app link who knows or guesses an ID can see that student's name and programme. Mitigation: look-ups from students' own phones are capped (`public_lookups_per_minute`, default 60); pantry devices are not capped. | Owner chose "full name everywhere" over first-name-only or pantry-devices-only (asked 2026-10-19). |
+| 34 | Re-importing keeps visit history for students already known. Students no longer on the namelist are removed if they never visited, or kept as self-registered if they did (retention removes them a year after their last visit). | Keeps HEP's contact list accurate without losing visit counts. |
+| 35 | Names in capitals are shown in title case ("Ahmad Faiz bin Rahman"), with bin, binti, a/l and a/p in lower case; mixed-case names are shown as written. Students gain a `program` column at the end of the tab, added automatically. | Registrar lists are usually in capitals. Adding the column at the end keeps existing data in place. |
+
 ## Deferred
 
 - **DailySummary tab and yearly archive** (PLAN 5.6): not needed until the ledger grows. Reports read the ledger by date slice for now. Build before the first year ends.
-- **Roster import:** waits for the Assistant Registrar. `student_mode = ROSTER` and the roster check are already in the code; the import screen is not.

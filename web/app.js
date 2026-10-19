@@ -215,10 +215,26 @@ function renderMessage(ms, en, retry) {
 }
 
 function privacyNotice() {
+  const namelist = settings().student_mode === 'ROSTER';
   return el('details', { class: 'notice' },
     el('summary', null, bi('Notis privasi', 'Privacy notice')),
-    bi('Kami merekod ID pelajar, nama dan fakulti anda serta barang yang anda ambil, supaya rekod tepat dan Bahagian Hal Ehwal Pelajar (HEP) boleh menghubungi anda jika anda memerlukan bantuan lanjut. Rekod disimpan selama 1 tahun selepas lawatan terakhir anda dan hanya boleh dilihat oleh staf yang dibenarkan.',
-      'We record your student ID, name, faculty and the items you take, to keep accurate records and so that Student Affairs (HEP) can contact you if you need more help. Records are kept for 1 year after your last visit and only authorised staff can see them.', 'p'));
+    namelist
+      ? bi('Kami menggunakan ID pelajar anda untuk mendapatkan nama dan program anda daripada senarai nama pelajar (atau meminta nama dan fakulti anda jika anda tiada dalam senarai), dan merekod barang yang anda ambil. Tujuannya supaya rekod tepat dan Bahagian Hal Ehwal Pelajar (HEP) boleh menghubungi anda jika anda memerlukan bantuan lanjut. Rekod disimpan selama 1 tahun selepas lawatan terakhir anda dan hanya boleh dilihat oleh staf yang dibenarkan.',
+        'We use your student ID to find your name and programme in the student namelist (or ask for your name and faculty if you are not on it), and record the items you take. This keeps records accurate and lets Student Affairs (HEP) contact you if you need more help. Records are kept for 1 year after your last visit and only authorised staff can see them.', 'p')
+      : bi('Kami merekod ID pelajar, nama dan fakulti anda serta barang yang anda ambil, supaya rekod tepat dan Bahagian Hal Ehwal Pelajar (HEP) boleh menghubungi anda jika anda memerlukan bantuan lanjut. Rekod disimpan selama 1 tahun selepas lawatan terakhir anda dan hanya boleh dilihat oleh staf yang dibenarkan.',
+        'We record your student ID, name, faculty and the items you take, to keep accurate records and so that Student Affairs (HEP) can contact you if you need more help. Records are kept for 1 year after your last visit and only authorised staff can see them.', 'p'));
+}
+
+/** The student shown in screen headers: name and programme once known, otherwise the masked ID. */
+function studentLine() {
+  const s = state.student;
+  if (!s.name) return 'ID ' + StudentId.mask(s.id);
+  return Names.display(s.name) + (s.program ? ' · ' + s.program : '');
+}
+
+function initials(name) {
+  const words = Names.display(name).split(' ').filter((w) => /^[A-Za-z]/.test(w) && !/^(bin|binti|bt|bte)$/.test(w));
+  return words.slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 }
 
 function renderStart() {
@@ -243,22 +259,25 @@ function renderStart() {
       input.focus();
       return;
     }
-    if (settings().student_mode === 'ROSTER' && !(state.device && !state.online)) {
-      next.disabled = true;
-      try {
-        await call('checkStudent', { id });
-      } catch (err) {
-        next.disabled = false;
-        // A pantry device that just lost its connection carries on; the server checks the ID on sync.
-        if (!(err.network && state.device)) {
-          error.replaceChildren(errorText(err));
-          return;
-        }
-      }
-    }
+    const rememberedForId = remembered && remembered.id === id ? remembered : null;
     state.student = { id };
-    if (settings().student_mode === 'ROSTER') return renderBasket();
-    renderDetails(remembered && remembered.id === id ? remembered : null);
+    if (settings().student_mode !== 'ROSTER') return renderDetails(rememberedForId);
+    // Namelist: look the student up. A pantry device without a connection asks for details instead,
+    // and the server uses the namelist record when the visit syncs.
+    if (state.device && !state.online) return renderDetails(rememberedForId, 'offline');
+    next.disabled = true;
+    let found;
+    try {
+      found = await call('checkStudent', { id });
+    } catch (err) {
+      next.disabled = false;
+      if (err.network && state.device) return renderDetails(rememberedForId, 'offline');
+      error.replaceChildren(errorText(err));
+      return;
+    }
+    if (!found.found) return renderDetails(rememberedForId, 'not-listed');
+    state.student = { id, name: found.name, program: found.program, onList: true };
+    renderConfirm();
   });
   screen(
     el('header', { class: 'top' }, el('h1', null, bi('Ambil apa yang anda perlukan', 'Take what you need'))),
@@ -268,7 +287,32 @@ function renderStart() {
   input.focus();
 }
 
-function renderDetails(remembered) {
+/** A student found on the namelist confirms it is them; the tap also records their consent. */
+function renderConfirm() {
+  const s = state.student;
+  const yes = el('button', { class: 'primary big' }, bi('Ya, ini saya', "Yes, that's me"));
+  yes.addEventListener('click', () => {
+    state.student.consent = true;
+    renderBasket();
+  });
+  screen(
+    el('header', { class: 'top' }, el('h1', null, bi('Adakah ini anda?', 'Is this you?'))),
+    el('section', { class: 'card identity' },
+      el('div', { class: 'avatar', 'aria-hidden': 'true' }, initials(s.name)),
+      el('p', { class: 'identity-name' }, Names.display(s.name)),
+      s.program ? el('p', { class: 'identity-program' }, s.program) : null,
+      el('p', { class: 'subtle' }, 'ID ' + StudentId.mask(s.id)),
+      yes,
+      el('p', { class: 'consent-note' }, bi('Dengan menekan butang ini, anda bersetuju data anda digunakan seperti dalam notis privasi.',
+        'By tapping this button, you agree to your data being used as described in the privacy notice.')),
+      el('button', { class: 'link', onclick: endVisit }, bi('Bukan saya', "That's not me"))),
+    privacyNotice(),
+    footer());
+  startIdleTimer();
+  yes.focus();
+}
+
+function renderDetails(remembered, reason) {
   const prior = remembered || state.student;
   const name = el('input', { id: 'name', autocomplete: 'name', maxlength: '100', value: prior.name || '' });
   const faculty = el('select', { id: 'faculty' },
@@ -301,8 +345,14 @@ function renderDetails(remembered) {
     writeRemembered(remember && remember.checked ? state.student : null);
     renderBasket();
   });
+  const why = reason === 'not-listed'
+    ? bi('ID anda tiada dalam senarai nama. Sila masukkan butiran anda.', "Your ID isn't on the namelist. Please enter your details.", 'p')
+    : reason === 'offline'
+      ? bi('Tiada sambungan, jadi nama anda tidak dapat dicari. Sila masukkan butiran anda.', 'No connection, so your name could not be looked up. Please enter your details.', 'p')
+      : null;
   screen(el('header', { class: 'top' }, el('h1', null, bi('Butiran anda', 'Your details')),
     el('p', { class: 'subtle' }, 'ID ' + StudentId.mask(state.student.id))),
+    why ? el('div', { class: 'notice info' }, why) : null,
     privacyNotice(), form, footer());
   startIdleTimer();
   (prior.name ? faculty : name).focus();
@@ -437,7 +487,7 @@ function renderBasket() {
   screen(
     el('header', { class: 'top' },
       el('h1', null, bi('Bakul anda', 'Your basket')),
-      el('p', { class: 'subtle' }, 'ID ' + StudentId.mask(state.student.id))),
+      el('p', { class: 'subtle student-line' }, studentLine())),
     el('section', { class: 'card' }, list, largeNotice, message,
       el('button', { class: 'link', onclick: endVisit }, bi('Batal lawatan', 'Cancel visit'))),
     el('section', { class: 'card' }, cameraButton, video,
@@ -494,10 +544,14 @@ async function loadPhotos() {
 
 async function confirmVisit(button, show) {
   button.disabled = true;
+  const s = state.student;
   const visit = {
     visit_id: newUuid(),
     occurred_at: new Date().toISOString(),
-    student: state.student,
+    // On the namelist the server already knows the name; otherwise send the typed details.
+    student: s.onList
+      ? { id: s.id, consent: s.consent === true }
+      : { id: s.id, name: s.name, faculty_code: s.faculty_code, consent: s.consent === true },
     lines: state.basket.map((l) => ({ item_id: l.item_id, qty: l.qty })),
     unknown_barcodes: state.unknown.slice(),
   };
@@ -519,12 +573,14 @@ async function confirmVisit(button, show) {
 
 function renderThanks(savedOffline) {
   const seconds = settings().thanks_seconds || 5;
+  const name = state.student && state.student.name ? Names.display(state.student.name) : '';
   state.student = null;
   state.basket = [];
   state.unknown = [];
   screen(el('section', { class: 'card thanks' },
     el('div', { class: 'success-mark', 'aria-hidden': 'true' }, icon('check')),
-    bi('Terima kasih!', 'Thank you!', 'h1'),
+    bi(name ? 'Terima kasih ' + name + '.' : 'Terima kasih.', name ? 'Thank you, ' + name + '.' : 'Thank you.', 'h1'),
+    el('div', { class: 'meal' }, bi('Selamat menjamu selera!', 'Enjoy your meal!', 'p')),
     savedOffline
       ? bi('Lawatan anda disimpan pada peranti ini dan akan dihantar apabila ada sambungan.', 'Your visit is saved on this device and will be sent when the connection is back.', 'p')
       : bi('Lawatan anda telah direkodkan.', 'Your visit has been recorded.', 'p'),

@@ -57,6 +57,7 @@ function createFakeDb(schema) {
     slice: (n, f, from, to) => tables[n].map(withRow).filter((r) => time(r[f]) >= from.getTime() && time(r[f]) < to.getTime()),
     withLock: (fn) => fn(),
     forget: () => {},
+    ensureHeaders: () => {},
   };
 }
 
@@ -65,6 +66,11 @@ function loadBackend() {
   const properties = {};
   const cache = {};
   const mail = [];
+  const books = {}; // Other spreadsheets the owner can open, such as the student namelist: {id: {name, tabs}}.
+  const fakeSheet = (book, tab) => ({
+    getName: () => tab,
+    getDataRange: () => ({ getDisplayValues: () => book.tabs[tab].map((row) => row.map((v) => String(v))) }),
+  });
   const context = {
     console: { log() {}, error() {} },
     Utilities: {
@@ -93,7 +99,19 @@ function loadBackend() {
       }),
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
-    SpreadsheetApp: { flush() {} },
+    SpreadsheetApp: {
+      flush() {},
+      openById: (id) => {
+        const book = books[id];
+        if (!book) throw new Error('Spreadsheet not found');
+        return {
+          getName: () => book.name,
+          getId: () => id,
+          getSheets: () => Object.keys(book.tabs).map((tab) => fakeSheet(book, tab)),
+          getSheetByName: (tab) => (book.tabs[tab] ? fakeSheet(book, tab) : null),
+        };
+      },
+    },
     Session: {
       getActiveUser: () => ({ getEmail: () => user.email }),
       getEffectiveUser: () => ({ getEmail: () => 'owner@uitm.edu.my' }),
@@ -115,7 +133,7 @@ function loadBackend() {
   const db = createFakeDb(run('SCHEMA'));
   context.Db = db;
   properties.STUDENT_HMAC_KEY = 'test-secret-key';
-  return { run, db, user, mail, cache, properties, fn: (name) => run(name) };
+  return { run, db, user, mail, cache, properties, books, fn: (name) => run(name) };
 }
 
 module.exports = { loadBackend };

@@ -18,6 +18,7 @@ Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [doc
    - Rename the locations if needed. Setup creates `S1` Stor Pusat (Central Store) and `P1` Pantri 1. Add Pantri 2 when it opens.
    - Add the faculties students choose from (code, BM name, English name). "Lain-lain / Other" is there to start.
    - Check the settings, especially **Student ID format** (default: 10 digits).
+   - **Student namelist:** paste the link of the namelist Google Sheet, press **Preview**, check the student ID, name and programme columns, then **Import and use the namelist**. Students then key in only their ID and see their name and programme; anyone not on the list types their details. Import again each semester. Only ID, name and programme are kept (never IC numbers).
 4. **Staff tab (admins):** add each staff member's UiTM email. Tick "Receives stock alert emails" for anyone who should get alerts.
 5. **Items tab:** add each item with a photo, link its barcodes (scan them with the USB scanner), and set low-stock thresholds per location. Items without a barcode can be tapped on screen, or labelled with their internal code (NB-001 and so on): **Print barcode labels** on the Items tab prints a sheet of 24 labels per A4 page.
 6. **Receive tab:** record the first delivery into the Central Store, then use **Transfer** to move stock to Pantri 1.

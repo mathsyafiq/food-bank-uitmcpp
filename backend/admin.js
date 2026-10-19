@@ -27,6 +27,7 @@ function adminStudentLookup(studentId) {
         student_id: student.student_id,
         name: student.name,
         faculty: faculties[student.faculty_code] ? faculties[student.faculty_code].name_ms : student.faculty_code,
+        program: String(student.program || ''),
         source: student.source,
         first_visit_at: student.first_visit_at,
         last_visit_at: student.last_visit_at,
@@ -43,10 +44,12 @@ function adminStudentsCsv() {
     const faculties = facultiesByCode_();
     const students = Db.read('Students');
     audit_(me, 'students_export', students.length + ' students');
-    const rows = [['student_id', 'name', 'faculty', 'first_visit', 'last_visit', 'visits']].concat(students.map((s) => [
+    const rows = [['student_id', 'name', 'program', 'faculty', 'on_namelist', 'first_visit', 'last_visit', 'visits']].concat(students.map((s) => [
       s.student_id,
       s.name,
+      s.program,
       faculties[s.faculty_code] ? faculties[s.faculty_code].name_ms : s.faculty_code,
+      s.source === 'ROSTER' ? 'yes' : 'no',
       formatDay_(s.first_visit_at),
       formatDay_(s.last_visit_at),
       Number(s.visit_count) || 0,

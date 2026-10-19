@@ -48,7 +48,7 @@ Pantry devices (laptop and pantry phones) are set up once by staff, using a devi
 - **No sign-in.** Students never log in with Google or any account.
 - Identify by typing their student ID. The RHB mySiswa card likely has no barcode, so typing is the main path; scanning works if a card has one.
 - Validation depends on the roster (section 7):
-  - **Roster available** (requested from the Assistant Registrar): the ID must be on the roster.
+  - **Namelist imported** (the college namelist, a Google Sheet imported on the staff Setup page): the student keys in only their ID and confirms the name and programme shown. IDs not on the namelist give their name and faculty instead (decisions 32 to 35).
   - **No roster:** the student gives their student ID, name, and faculty (chosen from a list), and consents. Whether this is asked once or on every visit is decided in the plan (section 7).
 - No per-student quantity limit and no visit limit.
 
@@ -161,7 +161,7 @@ Rules:
 ### Roster
 - Requested from the Assistant Registrar. If provided, an admin imports the CSV through an admin-only function. Only `student_key` values are stored, and the admin deletes the CSV afterwards. Re-import each intake; it replaces the ROSTER entries.
 - If not provided, students self-register with their student ID, name, and faculty (from the Faculties list), and give consent. Nothing else is collected (no IC or phone number).
-- The name is kept only in the admin-only Students tab. It never appears in transactions, emails, or on screen after it is typed. The privacy notice must state what the name is used for **(to confirm)**.
+- The name is kept only in the admin-only Students tab and never appears in transactions or emails. After an ID is entered, the student's name and programme are shown on every device, by the owner's decision (33): anyone who knows a student's ID can see them. Look-ups from students' own phones are limited per minute.
 - Self-registration cannot prove an ID is real. That is accepted, because there are no limits.
 
 ### Storing IDs
@@ -172,7 +172,7 @@ Rules:
 - On students' own phones, nothing about the student is kept after the visit ends.
 
 ### The ID check must not reveal who uses the food bank
-- With a roster, "valid" only tells someone that a person is enrolled.
+- With the namelist, entering an ID shows that student's name and programme (accepted by the owner, decision 33).
 - With self-registration, "already registered" means "has used the food bank", which is sensitive. The check must not let someone type a friend's ID and find out whether they have visited. Options and a recommendation are in `docs/PLAN.md` §5.2 **(open)**.
 
 ### Retention

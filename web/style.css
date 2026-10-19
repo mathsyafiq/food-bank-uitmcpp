@@ -278,9 +278,29 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: none; bo
 }
 .checkout .primary { margin-top: 0; }
 
+/* ---------- Is this you? ---------- */
+.identity { padding: 28px 20px 16px; text-align: center; }
+.avatar {
+  display: grid; place-items: center; width: 72px; height: 72px; margin: 0 auto 16px;
+  border-radius: 50%; background: var(--brand); color: var(--brand-ink);
+  font-size: 26px; font-weight: 700; letter-spacing: 0.02em;
+  animation: mark-in 280ms var(--ease-out) both;
+}
+.identity-name { margin: 0; font-size: 26px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; text-wrap: balance; }
+.identity-program { margin: 8px 0 0; font-weight: 600; color: var(--text-muted); }
+.identity .subtle { margin-top: 4px; }
+.identity .primary { margin-top: 24px; }
+.consent-note { margin: 12px 0 0; font-size: 13.5px; color: var(--text-muted); }
+.consent-note .en { font-size: 0.95em; }
+.student-line { font-weight: 600; color: var(--text); }
+.notice.info { background: var(--surface-sunken); box-shadow: none; }
+.notice.info .bi { margin: 0; color: var(--text); }
+
 /* ---------- Thank you ---------- */
 .thanks { padding: 40px 24px 28px; text-align: center; }
-.thanks h1 { margin: 0 0 10px; font-size: 32px; letter-spacing: -0.025em; }
+.thanks h1 { margin: 0 0 12px; font-size: clamp(24px, 6.4vw, 32px); line-height: 1.15; letter-spacing: -0.025em; text-wrap: balance; }
+.thanks .meal { margin: 0 0 16px; font-size: 20px; font-weight: 650; }
+.thanks .meal p { margin: 0; }
 .thanks .secondary { max-width: 320px; margin: 24px auto 0; }
 .success-mark {
   display: grid; place-items: center; width: 88px; height: 88px; margin: 0 auto 22px;
@@ -312,7 +332,7 @@ footer .link { margin-top: 0; }
 
 /* Fewer, gentler animations: keep fades, drop movement and scaling. */
 @media (prefers-reduced-motion: reduce) {
-  .screen, .basket li.line, .success-mark { animation-name: fade-in; }
+  .screen, .basket li.line, .success-mark, .avatar { animation-name: fade-in; }
   .success-mark path { animation: none; stroke-dashoffset: 0; }
   .countdown { display: none; }
   .primary, .secondary, .danger, .round, .tile { transition-property: background-color, box-shadow, opacity; }

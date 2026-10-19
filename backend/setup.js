@@ -28,11 +28,14 @@ function ensureTab_(book, name) {
   if (!sheet) sheet = book.insertSheet(name);
   const header = sheet.getRange(1, 1, 1, columns.length);
   const current = header.getValues()[0];
-  if (current.every((v) => v === '')) {
+  const filled = current.filter((v) => v !== '');
+  if (!filled.length) {
     header.setValues([columns]).setFontWeight('bold');
     sheet.setFrozenRows(1);
-  } else if (current.join('|') !== columns.join('|')) {
+  } else if (filled.join('|') !== columns.slice(0, filled.length).join('|')) {
     throw new Error('Tab "' + name + '" has unexpected headers. Expected: ' + columns.join(', '));
+  } else if (filled.length < columns.length) {
+    header.setValues([columns]).setFontWeight('bold'); // Columns added to SCHEMA since the tab was made.
   }
   columns.forEach((field, i) => {
     if (TEXT_COLUMNS.indexOf(field) >= 0) sheet.getRange(2, i + 1, sheet.getMaxRows() - 1, 1).setNumberFormat('@');

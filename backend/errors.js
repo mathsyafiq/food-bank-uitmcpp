@@ -13,6 +13,10 @@ const MESSAGES = {
   SETUP_CODE_INVALID: ['Kod salah atau telah tamat tempoh.', 'That code is wrong or has expired.'],
 
   STUDENT_ID_INVALID: ['ID pelajar tidak sah. Sila semak dan cuba lagi.', 'That student ID is not valid. Please check it and try again.'],
+  NAMELIST_LINK_INVALID: ['Pautan senarai nama tidak sah.', 'Paste the link of a Google Sheet (not the food bank database).'],
+  NAMELIST_NOT_FOUND: ['Senarai nama tidak dapat dibuka.', 'Could not open that Google Sheet or tab. Check the link and that the owner account can open it.'],
+  NAMELIST_COLUMNS: ['Lajur tidak sah.', 'Choose different columns for the student ID and the name.'],
+  NAMELIST_EMPTY: ['Tiada ID pelajar yang sah.', 'No valid student IDs found in that column. Check the column and the Student ID format setting.'],
   NOT_ON_ROSTER: ['ID pelajar tidak ditemui. Sila minta bantuan staf.', 'Student ID not found. Please ask staff for help.'],
   NAME_REQUIRED: ['Sila masukkan nama penuh anda.', 'Please enter your full name.'],
   FACULTY_REQUIRED: ['Sila pilih fakulti anda.', 'Please choose your faculty.'],
