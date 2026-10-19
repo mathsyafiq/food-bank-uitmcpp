@@ -1,4 +1,4 @@
-// Admin-only pages: students (for HEP), staff list, locations, faculties, settings, jobs.
+// Admin-only pages: students (for HEP), staff list, locations, settings, jobs.
 // Every look-up or export of student data is written to the AuditLog tab (PDPA accountability).
 
 function adminStudentLookup(studentId) {
@@ -10,7 +10,6 @@ function adminStudentLookup(studentId) {
     audit_(me, 'student_lookup', key.slice(0, 16));
     const row = Db.findRow('Students', 'student_key', key);
     const student = row ? Db.readRow('Students', row) : null;
-    const faculties = facultiesByCode_();
     const names = nameMaps_();
     const visits = Db.findRows('Visits', 'student_key', key).map((r) => Db.readRow('Visits', r)).map((v) => ({
       visit_id: v.visit_id,
@@ -26,8 +25,7 @@ function adminStudentLookup(studentId) {
       student: student && {
         student_id: student.student_id,
         name: student.name,
-        faculty: faculties[student.faculty_code] ? faculties[student.faculty_code].name_ms : student.faculty_code,
-        program: String(student.program || ''),
+        college: Colleges.label(String(student.college || ''), 'en'),
         source: student.source,
         first_visit_at: student.first_visit_at,
         last_visit_at: student.last_visit_at,
@@ -41,14 +39,12 @@ function adminStudentLookup(studentId) {
 /** The student list for Student Affairs (HEP) to contact students who need more help. */
 function adminStudentsCsv() {
   return staffCall_('admin', (me) => {
-    const faculties = facultiesByCode_();
     const students = Db.read('Students');
     audit_(me, 'students_export', students.length + ' students');
-    const rows = [['student_id', 'name', 'program', 'faculty', 'on_namelist', 'first_visit', 'last_visit', 'visits']].concat(students.map((s) => [
+    const rows = [['student_id', 'name', 'college', 'on_namelist', 'first_visit', 'last_visit', 'visits']].concat(students.map((s) => [
       s.student_id,
       s.name,
-      s.program,
-      faculties[s.faculty_code] ? faculties[s.faculty_code].name_ms : s.faculty_code,
+      s.college,
       s.source === 'ROSTER' ? 'yes' : 'no',
       formatDay_(s.first_visit_at),
       formatDay_(s.last_visit_at),
@@ -109,23 +105,6 @@ function adminSaveLocation(form) {
       Db.append('Locations', [{ location_id: id, name: name, type: type, active: true }]);
       audit_(me, 'location_add', id + ' ' + name);
       return { location_id: id };
-    });
-  });
-}
-
-function adminSaveFaculty(form) {
-  return staffCall_('admin', () => {
-    form = form || {};
-    const code = String(form.faculty_code || '').trim().toUpperCase();
-    if (!/^[A-Z0-9-]{2,15}$/.test(code)) throw new ApiError('CODE_INVALID');
-    const nameMs = safeText_(form.name_ms, 120);
-    if (nameMs.length < 2) throw new ApiError('NAME_INVALID');
-    const record = { faculty_code: code, name_ms: nameMs, name_en: safeText_(form.name_en, 120), active: form.active !== false };
-    return Db.withLock(() => {
-      const row = Db.findRow('Faculties', 'faculty_code', code);
-      if (row) Db.writeRow('Faculties', Object.assign(record, { _row: row }));
-      else Db.append('Faculties', [record]);
-      return { saved: true };
     });
   });
 }

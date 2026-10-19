@@ -1,4 +1,6 @@
 // Sheet tabs and columns (CLAUDE.md section 6, docs/PLAN.md section 3). setup() creates them in this order.
+// Raise SCHEMA_VERSION when a release adds a column; the staff app then adds the missing headers once.
+const SCHEMA_VERSION = 2;
 const SCHEMA = {
   Settings: ['key', 'value'],
   Locations: ['location_id', 'name', 'type', 'active'],
@@ -20,9 +22,9 @@ const SCHEMA = {
   ArchiveTotals: ['item_id', 'location_id', 'archived_sum', 'archived_through'],
   Students: [
     'student_key', 'student_id', 'name', 'faculty_code', 'source',
-    'consent_at', 'first_visit_at', 'last_visit_at', 'visit_count', 'program',
+    // faculty_code and program are no longer filled (decision 37); they stay so existing columns keep their place.
+    'consent_at', 'first_visit_at', 'last_visit_at', 'visit_count', 'program', 'college',
   ],
-  Faculties: ['faculty_code', 'name_ms', 'name_en', 'active'],
   Staff: ['email', 'name', 'role', 'receives_alerts', 'active'],
   Devices: ['device_id', 'label', 'location_id', 'key_hash', 'created_by', 'created_at', 'last_seen', 'revoked'],
   AlertLog: ['date', 'location_id', 'item_id', 'alert_type', 'sent_at'],
@@ -40,3 +42,17 @@ const LOCKED_TABS = [
   'Transactions', 'Visits', 'Batches', 'Stock', 'ArchiveTotals', 'Students',
   'Photos', 'Devices', 'AlertLog', 'AuditLog',
 ];
+
+/** Writes the header of any column a release added (for example Students.college), once per SCHEMA_VERSION. */
+function ensureSchema_() {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('SCHEMA_VERSION') === String(SCHEMA_VERSION)) return;
+  Object.keys(SCHEMA).forEach((name) => {
+    try {
+      Db.ensureHeaders(name);
+    } catch (err) {
+      // A tab that does not exist yet: setup() creates it with every header.
+    }
+  });
+  props.setProperty('SCHEMA_VERSION', String(SCHEMA_VERSION));
+}

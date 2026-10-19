@@ -9,6 +9,21 @@ export function cameraAvailable() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 }
 
+/**
+ * True if this device has a camera to scan with. Phones and tablets are assumed to have one, because some
+ * browsers list no cameras until permission is given. A laptop or desktop must actually list one.
+ */
+export async function hasCamera() {
+  if (!cameraAvailable()) return false;
+  if (!matchMedia('(pointer: fine)').matches) return true;
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.some((d) => d.kind === 'videoinput');
+  } catch (err) {
+    return false;
+  }
+}
+
 function loadZxing() {
   if (window.ZXing) return Promise.resolve(window.ZXing);
   if (!zxingPromise) {

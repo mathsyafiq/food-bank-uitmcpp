@@ -1,17 +1,19 @@
-// Importing the student namelist from a Google Sheet in Drive (CLAUDE.md section 7, decision 32).
-// Only the student ID, name and programme are kept. Columns such as IC numbers, phone numbers or addresses
+// Importing the student namelist from a Google Sheet in Drive (CLAUDE.md section 7, decisions 32 and 37).
+// Only the student ID, name and college are kept. Columns such as IC numbers, phone numbers or addresses
 // are never offered in the preview and can never be imported.
 
 const NAMELIST_NEVER = /\bic\b|\bkp\b|kad\s*pengenalan|mykad|nric|passport|pasport|\btel|phone|e-?mel|email|alamat|address/i;
-const NAMELIST_PROGRAM = /program|kursus|course/i;
+const NAMELIST_COLLEGE = /kolej|college|residensi|asrama/i;
+const NAMELIST_PROGRAM = /program|kursus|course/i; // Recognised only so "Nama Program" is not taken for the name.
 const NAMELIST_NAME = /nama|name/i;
 const NAMELIST_ID = /pelajar|matrik|matric|student|^\s*(no\.?\s*)?id\s*$/i;
 
-/** What a header names: 'program', 'name', 'id', 'never' (personal data we must not take) or null. */
+/** What a header names: 'college', 'program', 'name', 'id', 'never' (personal data we must not take) or null. */
 function classifyHeader_(header) {
   const text = String(header == null ? '' : header).trim();
   if (!text) return null;
   if (NAMELIST_NEVER.test(text)) return 'never';
+  if (NAMELIST_COLLEGE.test(text)) return 'college'; // Before name, so "Nama Kolej" is a college.
   if (NAMELIST_PROGRAM.test(text)) return 'program'; // Before name, so "Nama Program" is a programme.
   if (NAMELIST_NAME.test(text)) return 'name'; // Before id, so "Nama Pelajar" is a name.
   if (NAMELIST_ID.test(text)) return 'id';
@@ -50,7 +52,7 @@ function openNamelist_(link, tabName) {
 
 /**
  * Finds the header row (the row in the first 15 with the most recognised headers) and the ID, name and
- * programme columns. Without an ID header, picks the column whose values look most like student IDs.
+ * college columns. Without an ID header, picks the column whose values look most like student IDs.
  */
 function guessNamelistColumns_(values, pattern, headerRowOverride) {
   let best = { row: 0, score: -1, columns: {} };
@@ -73,7 +75,7 @@ function guessNamelistColumns_(values, pattern, headerRowOverride) {
     let bestCol = -1;
     let bestHits = 0;
     headers.forEach((h, c) => {
-      if (classifyHeader_(h) === 'never' || c === best.columns.name || c === best.columns.program) return;
+      if (classifyHeader_(h) === 'never' || c === best.columns.name || c === best.columns.college || c === best.columns.program) return;
       const hits = sample.filter((row) => StudentId.isValid(row[c], pattern)).length;
       if (hits > bestHits) {
         bestHits = hits;
@@ -103,7 +105,8 @@ function adminPreviewNamelist(form) {
       tab: src.tab,
       header_row: guess.header_row + 1,
       headers: headers.map((h, i) => ({ index: i, label: h || 'Column ' + (i + 1), allowed: allowed[i] })),
-      columns: guess.columns,
+      // Programme is recognised only to keep it out of the name column; it is never imported.
+      columns: { id: guess.columns.id, name: guess.columns.name, college: guess.columns.college },
       // Three rows to check the columns against. Columns we must not take are blanked out.
       sample: rows.slice(0, 3).map((r) => headers.map((h, i) => (allowed[i] ? String(r[i] || '') : '—'))),
       total_rows: rows.length,
@@ -111,7 +114,7 @@ function adminPreviewNamelist(form) {
   });
 }
 
-/** Admin: imports ID, name and programme for everyone on the namelist and switches the student check to ROSTER. */
+/** Admin: imports ID, name and college for everyone on the namelist and switches the student check to ROSTER. */
 function adminImportNamelist(form) {
   return staffCall_('admin', (me) => {
     form = form || {};
@@ -130,13 +133,14 @@ function adminImportNamelist(form) {
     };
     const idCol = column(form.id_col, true);
     const nameCol = column(form.name_col, true);
-    const programCol = column(form.program_col, false);
-    if (idCol === nameCol || idCol === programCol) throw new ApiError('NAMELIST_COLUMNS');
+    const collegeCol = column(form.college_col, false);
+    if (idCol === nameCol || idCol === collegeCol || nameCol === collegeCol) throw new ApiError('NAMELIST_COLUMNS');
 
     const seen = {};
     const people = [];
     let invalid = 0;
     let duplicates = 0;
+    const otherColleges = {}; // Values that are none of ours: kept as written and listed for the admin.
     src.values.slice(headerRow + 1).forEach((row) => {
       const rawId = String(row[idCol] || '').trim();
       if (!rawId && !String(row[nameCol] || '').trim()) return; // Blank row.
@@ -144,7 +148,10 @@ function adminImportNamelist(form) {
       if (!StudentId.isValid(id, settings.student_id_pattern)) return invalid++;
       if (seen[id]) return duplicates++;
       seen[id] = true;
-      people.push({ id: id, name: safeText_(row[nameCol], 120), program: programCol >= 0 ? safeText_(row[programCol], 120) : '' });
+      const written = collegeCol >= 0 ? safeText_(row[collegeCol], 60) : '';
+      const college = Colleges.match(written);
+      if (written && !college) otherColleges[written] = (otherColleges[written] || 0) + 1;
+      people.push({ id: id, name: safeText_(row[nameCol], 120), college: college || written });
     });
     if (!people.length) throw new ApiError('NAMELIST_EMPTY');
 
@@ -157,9 +164,9 @@ function adminImportNamelist(form) {
       const rows = people.map((p) => {
         const key = studentKey_(p.id);
         onList[key] = true;
-        // Keep visit history for students already known; take name and programme from the namelist.
+        // Keep visit history for students already known; take name and college from the namelist.
         return Object.assign({ faculty_code: '', consent_at: '', first_visit_at: '', last_visit_at: '', visit_count: 0 },
-          byKey[key] || {}, { student_key: key, student_id: p.id, name: p.name, program: p.program, source: 'ROSTER' });
+          byKey[key] || {}, { student_key: key, student_id: p.id, name: p.name, program: '', college: p.college, source: 'ROSTER' });
       });
       let removed = 0;
       let keptAsSelf = 0;
@@ -178,7 +185,10 @@ function adminImportNamelist(form) {
       writeSetting_('student_mode', 'ROSTER');
       writeSetting_('namelist_id', src.id);
       audit_(me, 'namelist_import', people.length + ' students from "' + src.name + '" (' + src.tab + ')');
-      return { imported: people.length, invalid: invalid, duplicates: duplicates, removed: removed, kept_as_self: keptAsSelf, file_name: src.name };
+      return {
+        imported: people.length, invalid: invalid, duplicates: duplicates, removed: removed, kept_as_self: keptAsSelf, file_name: src.name,
+        other_colleges: Object.keys(otherColleges).map((name) => ({ name: name, students: otherColleges[name] })),
+      };
     });
   });
 }

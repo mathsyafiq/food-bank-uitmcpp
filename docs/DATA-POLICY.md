@@ -115,7 +115,7 @@ This policy covers personal data in Food Bank UiTMCPP, UiTM's food bank inventor
 ### 2. What we collect
 
 From students, at every visit:
-- student ID, full name and programme (from the student namelist imported into the system); or, for students not on the namelist, full name and faculty (chosen from a list);
+- student ID, full name and college (from the student namelist imported into the system); or, for students not on the namelist (non-residents and walk-ins), full name and college (chosen from a list), given once and kept for later visits;
 - consent (a tick box) and when it was given;
 - the items and quantities taken, with the time and the pantry.
 
@@ -128,17 +128,17 @@ From staff: UiTM email, name, role, and the actions each person takes (deliverie
 - To keep accurate records of what leaves the food bank, and to match a student's name with their ID.
 - So Student Affairs (HEP) can contact students who may need more help.
 
-The data is not used for anything else. There are no visit or quantity limits, so no student is refused because of it. Any new purpose needs a new notice to students first.
+The data is not used for anything else. A visit holds up to 5 items, but there is no limit on visits, so no student is refused. Students not on the namelist are shown a link to register as non-resident in SIMS; the food bank sends nothing to SIMS, and they can take food without registering. Any new purpose needs a new notice to students first.
 
 ### 4. Where it is kept
 
 - **Google Sheet and Apps Script project** owned by a UiTM institutional Google Workspace account, not a personal one. Google may store the data outside Malaysia **(to confirm with ICT that UiTM's Google Workspace agreement covers this)**.
-- **Students tab:** student ID, name, programme or faculty, whether the student is on the namelist, consent time, visit dates and visit count. Admins import the namelist from a Google Sheet owned by the system account; only the ID, name and programme columns are taken.
-- **Student app screens:** after an ID is entered, the student's name and programme are shown so the student can confirm "this is me". This means anyone who knows a student's ID can see their name and programme. The system owner accepted this risk on 19 October 2026; look-ups from students' own phones are limited per minute **(to confirm with the legal office)**.
+- **Students tab:** student ID, name, college, whether the student is on the namelist, consent time, visit dates and visit count. Admins import the namelist from a Google Sheet owned by the system account; only the ID, name and college columns are taken. (Older rows may still hold a faculty or programme; these are no longer collected.)
+- **Student app screens:** after an ID is entered, the student's name and college are shown so the student can confirm "this is me". This applies to students on the namelist and to walk-ins who registered on an earlier visit. This means anyone who knows a student's ID can see their name and college, and, for a walk-in, that they have used the food bank. The system owner accepted this risk on 19 October 2026; look-ups from students' own phones are limited per minute **(to confirm with the legal office)**.
 - **Visits tab:** each visit is linked to a student only by a keyed code (HMAC-SHA256). The key is kept in the Apps Script project's settings (Script Properties), never in the Sheet, the apps or the code repository.
 - **Stock ledger (Transactions) and email alerts:** no student data.
 - **Pantry devices** (the pantry laptop and pantry phones) hold a visit only until it is sent, then delete it. A visit the server rejects stays on the device, marked "Needs staff", until staff resend or discard it on that device's Sync screen. Devices never hold a list of students.
-- **Students' own phones** keep nothing after the visit, unless the student ticks "Remember my details on this phone". Their ID, name and faculty then stay in that phone's browser until they tap "Not you? Clear saved details" or untick the box.
+- **Students' own phones** keep nothing after the visit, unless the student ticks "Remember my details on this phone". Their ID, name and college then stay in that phone's browser until they tap "Not you? Clear saved details" or untick the box.
 - **The code repository on GitHub** is public and holds no student data.
 
 ### 5. Who can see it
@@ -147,7 +147,7 @@ The data is not used for anything else. There are no visit or quantity limits, s
 |---|---|
 | Owner (institutional account) | Everything, including the spreadsheet. The only account that can edit the Students, Visits, Transactions and AuditLog tabs directly. |
 | Admins (role admin on the Staff tab) | In the staff app: student look-up by ID, the HEP export, the staff list and settings. |
-| Staff (role staff) | Stock, deliveries, transfers, counts, adjustments, voids, items and reports. No student IDs, names or faculties. Staff never open the spreadsheet. |
+| Staff (role staff) | Stock, deliveries, transfers, counts, adjustments, voids, items and reports. No student IDs, names or colleges. Staff never open the spreadsheet. |
 | Students | Only their own screen. The ID is shown masked (for example 2023••••89). |
 | Email recipients | Stock alerts and the large-quantity digest, which hold no student data. |
 
@@ -157,7 +157,7 @@ Opening the Students tab directly in the spreadsheet is not recorded in AuditLog
 
 Every night at 2 a.m., a scheduled job (`nightlyJobs` in `backend/jobs.js`):
 - removes the student link (`student_key`) from visits more than 365 days old. The visit and item records stay, with no link to any student, for stock history;
-- deletes self-registered students whose last visit was more than 365 days ago (ID, name and faculty are removed from the Students tab).
+- deletes self-registered students whose last visit was more than 365 days ago (ID, name and college are removed from the Students tab).
 
 The period is the `retention_days` setting (default 365). Only admins can change it, and each change is recorded in AuditLog. If a roster is ever imported, it is replaced at each import.
 
@@ -172,7 +172,7 @@ The AuditLog tab records the time and staff email for each student look-up (a sh
 
 ### 8. Exports for HEP
 
-- Only admins can export, from the Students page of the staff app. The file lists student ID, name, programme, faculty, whether on the namelist, first and last visit dates and number of visits for students seen in the last year. Every export is recorded in AuditLog.
+- Only admins can export, from the Students page of the staff app. The file lists student ID, name, college, whether on the namelist, first and last visit dates and number of visits for students seen in the last year. Every export is recorded in AuditLog.
 - Send it only to the named HEP officer through UiTM channels (UiTM email or a UiTM Google Drive share), never by WhatsApp, personal email or USB drive.
 - Delete your copy (Downloads folder and trash) after sending.
 - HEP keeps and deletes the file under its own rules **(to confirm the retention period with HEP)**.

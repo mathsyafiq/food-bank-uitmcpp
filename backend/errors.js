@@ -19,7 +19,7 @@ const MESSAGES = {
   NAMELIST_EMPTY: ['Tiada ID pelajar yang sah.', 'No valid student IDs found in that column. Check the column and the Student ID format setting.'],
   NOT_ON_ROSTER: ['ID pelajar tidak ditemui. Sila minta bantuan staf.', 'Student ID not found. Please ask staff for help.'],
   NAME_REQUIRED: ['Sila masukkan nama penuh anda.', 'Please enter your full name.'],
-  FACULTY_REQUIRED: ['Sila pilih fakulti anda.', 'Please choose your faculty.'],
+  COLLEGE_REQUIRED: ['Sila pilih kolej anda.', 'Please choose your college.'],
   CONSENT_REQUIRED: ['Sila tandakan kotak persetujuan untuk meneruskan.', 'Please tick the consent box to continue.'],
 
   VISIT_MISSING: ['Permintaan tidak sah.', 'The request was not valid.'],

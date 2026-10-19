@@ -27,13 +27,36 @@
     return node;
   }
 
+  // Waiting on the server (docs/DECISIONS.md 38): a thin bar runs along the top of the page while any call is
+  // out, and the button that started it shows a spinner in place of its label.
+  let pending = 0;
   function call(name, ...args) {
-    return new Promise((resolve, reject) => {
+    pending++;
+    document.documentElement.classList.add('waiting');
+    const done = () => {
+      pending = Math.max(0, pending - 1);
+      if (!pending) document.documentElement.classList.remove('waiting');
+    };
+    const request = new Promise((resolve, reject) => {
       google.script.run
         .withSuccessHandler(resolve)
         .withFailureHandler((err) => reject(new Error(String((err && err.message) || err).replace(/^(Exception|Error): /, ''))))
         [name](...args);
     });
+    request.then(done, done);
+    return request;
+  }
+
+  /** The button keeps its size: its label fades out and a spinner takes its place until setBusy(button, false). */
+  function setBusy(button, on) {
+    if (on && !button.querySelector(':scope > .btn-spinner')) {
+      const label = el('span', { class: 'btn-label' });
+      label.append(...button.childNodes);
+      button.append(label, el('span', { class: 'btn-spinner', 'aria-hidden': 'true' }));
+    }
+    button.classList.toggle('is-busy', on);
+    if (on) button.setAttribute('aria-busy', 'true');
+    else button.removeAttribute('aria-busy');
   }
 
   let toastTimer = null;
@@ -45,16 +68,17 @@
     toastTimer = setTimeout(() => { box.className = ''; }, isError ? 7000 : 3500);
   }
 
-  /** Runs an action with its button disabled, showing any error as a toast. */
+  /** Runs an action with a spinner on its button (pressing it again does nothing), showing any error as a toast. */
   async function act(button, fn) {
-    if (button) button.disabled = true;
+    if (button && button.classList.contains('is-busy')) return undefined;
+    if (button) setBusy(button, true);
     try {
       return await fn();
     } catch (err) {
       toast(err.message || String(err), true);
       return undefined;
     } finally {
-      if (button) button.disabled = false;
+      if (button) setBusy(button, false);
     }
   }
 
@@ -1137,7 +1161,7 @@
       const s = result.student;
       out.replaceChildren(
         s ? el('div', { class: 'card' },
-          el('p', null, el('b', null, s.name), ' · ', s.student_id, ' · ', s.program || s.faculty, s.source === 'ROSTER' ? ' · on namelist' : ''),
+          el('p', null, el('b', null, s.name), ' · ', s.student_id, s.college ? ' · ' + s.college : '', s.source === 'ROSTER' ? ' · on namelist' : ' · walk-in'),
           el('p', { class: 'muted' }, s.visit_count + ' visit(s). First ' + s.first_visit_at + ', last ' + s.last_visit_at + '.')) : null,
         result.visits.length ? table(['Time', 'Location', 'Items', 'Notes'], result.visits.map((v) => el('tr', null,
           el('td', null, v.occurred_at), el('td', null, v.location), el('td', null, v.lines),
@@ -1157,7 +1181,7 @@
       el('div', { class: 'card' }, el('div', { class: 'row' }, field('Student ID', id)), el('div', { class: 'actions' }, find)),
       out,
       el('h3', null, 'For Student Affairs (HEP)'),
-      el('p', { class: 'muted' }, 'Students who visited in the last year, with their name, faculty and number of visits, so HEP can contact those who need more help.'),
+      el('p', { class: 'muted' }, 'Students on the namelist and walk-ins, with their name, college and number of visits, so HEP can contact those who need more help.'),
       el('div', { class: 'actions' }, exportButton),
       exportBox);
     id.focus();
@@ -1197,12 +1221,13 @@
   // ---------- Admin: setup ----------
 
   const SETTING_LABELS = {
-    student_mode: ['Student check', 'SELF: students give ID, name and faculty every visit. ROSTER: name and programme come from the imported namelist (see Student namelist above); IDs not on it give their details.'],
+    student_mode: ['Student check', 'SELF: students give ID, name and college every visit. ROSTER: name and college come from the imported namelist (see Student namelist above); students not on it are asked to register as non-resident (NR) in SIMS, give their details once, and are then recognised by ID.'],
     student_id_pattern: ['Student ID format', 'A regular expression. Default ^\\d{10}$ means 10 digits.'],
     retention_days: ['Keep visit records (days)', 'PDPA retention. Default 365.'],
     large_qty_threshold: ['Large-quantity flag', 'A line at or above this is flagged for review, never blocked.'],
     default_threshold: ['Default low-stock threshold', 'Used when an item has no threshold of its own.'],
     max_line_qty: ['Highest quantity on one line', 'Catches typos like 1000.'],
+    max_items_per_visit: ['Items per visit (student app)', 'The basket is full at this many items. Students can start another visit for more; nothing is blocked on the server.'],
     inactivity_seconds: ['Reset after inactivity (seconds)', 'The student app clears the basket after this long.'],
     thanks_seconds: ['Thank-you screen (seconds)', ''],
     public_submits_per_minute: ['Student-phone visits per minute (limit)', 'Slows scripted spam. Far above real traffic.'],
@@ -1234,34 +1259,37 @@
         allowed.map((h) => el('option', { value: String(h.index), selected: h.index === guess }, h.label)));
       const idCol = columnSelect(p.columns.id);
       const nameCol = columnSelect(p.columns.name);
-      const programCol = columnSelect(p.columns.program, true);
+      const collegeCol = columnSelect(p.columns.college, true);
       const sample = el('div');
       const drawSample = () => {
-        const cols = [['Student ID', idCol], ['Name', nameCol], ['Programme', programCol]].filter((c) => c[1].value !== '');
+        const cols = [['Student ID', idCol], ['Name', nameCol], ['College', collegeCol]].filter((c) => c[1].value !== '');
         sample.replaceChildren(table(cols.map((c) => c[0]), p.sample.map((row) => el('tr', null, cols.map((c) => el('td', null, row[Number(c[1].value)]))))));
       };
-      [idCol, nameCol, programCol].forEach((select) => select.addEventListener('change', drawSample));
+      [idCol, nameCol, collegeCol].forEach((select) => select.addEventListener('change', drawSample));
       drawSample();
       const again = el('button', { class: 'secondary' }, 'Preview again');
       again.addEventListener('click', () => preview({ tab: tab.value, header_row: headerRow.value }));
       const go = el('button', { class: 'primary' }, 'Import and use the namelist');
       go.addEventListener('click', () => act(go, async () => {
         if (!idCol.value || !nameCol.value) throw new Error('Choose the student ID and name columns.');
-        if (!confirm('Import the students in "' + p.file_name + '"? Only student ID, name and programme are kept. Students then only key in their ID; anyone not on the list types their details.')) return;
+        if (!collegeCol.value && !confirm('No college column is chosen, so imported students will have no college. Continue?')) return;
+        if (!confirm('Import the students in "' + p.file_name + '"? Only student ID, name and college are kept. Students then only key in their ID; anyone not on the list is treated as non-resident (NR).')) return;
         const result = await call('adminImportNamelist', {
-          link: link.value, tab: tab.value, header_row: headerRow.value, id_col: idCol.value, name_col: nameCol.value, program_col: programCol.value,
+          link: link.value, tab: tab.value, header_row: headerRow.value, id_col: idCol.value, name_col: nameCol.value, college_col: collegeCol.value,
         });
         await reload();
         show('setup');
         toast('Imported ' + result.imported + ' students.' +
           (result.invalid ? ' ' + result.invalid + ' row(s) skipped (ID not in the student ID format).' : '') +
           (result.duplicates ? ' ' + result.duplicates + ' repeated ID(s) skipped.' : '') +
-          ' Students now only key in their ID.');
+          (result.other_colleges.length ? ' Kept as written, not one of the colleges: ' +
+            result.other_colleges.map((c) => c.name + ' (' + c.students + ')').join(', ') + '.' : '') +
+          ' Students now only key in their ID.', result.other_colleges.length > 0);
       }));
       box.replaceChildren(
         el('p', null, el('b', null, p.file_name), el('span', { class: 'muted' }, ' · ' + p.total_rows + ' rows')),
         el('div', { class: 'row' }, field('Tab', tab), field('Header row', headerRow, 'The row with the column names.')),
-        el('div', { class: 'row' }, field('Student ID column', idCol), field('Name column', nameCol), field('Programme column', programCol)),
+        el('div', { class: 'row' }, field('Student ID column', idCol), field('Name column', nameCol), field('College column', collegeCol)),
         el('h3', { style: 'margin-top:16px' }, 'First rows'),
         sample,
         el('p', { class: 'muted' }, 'Columns such as IC or phone numbers are never offered and never imported.'),
@@ -1270,8 +1298,10 @@
 
     return el('div', { class: 'card' }, el('h3', null, 'Student namelist'),
       el('p', { class: 'muted' }, state.data.settings.student_mode === 'ROSTER'
-        ? 'In use: students key in their ID and see their name and programme from the namelist. Import again each semester to refresh it.'
+        ? 'In use: students key in their ID and see their name and college from the namelist. Import again each semester to refresh it.'
         : 'Import the namelist (a Google Sheet the owner account can open) so students only key in their ID. Students not on it type their details.'),
+      el('p', { class: 'muted' }, 'Colleges: ' + state.data.colleges.join(', ') + '. College names in the namelist are matched to these (for example "KOLEJ KEDIAMAN NILAM" is Nilam). ' +
+        'Students not on the namelist are non-resident (NR): they are asked to register in SIMS, then give their name and college once.'),
       el('div', { class: 'row' }, field('Namelist link', link)),
       el('div', { class: 'actions' }, previewButton),
       box);
@@ -1298,28 +1328,6 @@
         toast('Saved.');
       }));
       return el('tr', null, el('td', null, l.location_id), el('td', null, name), el('td', null, l.type), el('td', null, active), el('td', null, save));
-    });
-
-    // Faculties
-    const facCode = el('input', { maxlength: '15', placeholder: 'e.g. FSKM' });
-    const facMs = el('input', { maxlength: '120', placeholder: 'Nama dalam BM' });
-    const facEn = el('input', { maxlength: '120', placeholder: 'Name in English' });
-    const addFac = el('button', { class: 'secondary' }, 'Save faculty');
-    addFac.addEventListener('click', () => act(addFac, async () => {
-      await call('adminSaveFaculty', { faculty_code: facCode.value, name_ms: facMs.value, name_en: facEn.value, active: true });
-      await reload();
-      show('setup');
-      toast('Faculty saved.');
-    }));
-    const facRows = state.data.faculties.map((f) => {
-      const toggle = el('button', { class: 'secondary' }, f.active ? 'Hide' : 'Show');
-      toggle.addEventListener('click', () => act(toggle, async () => {
-        await call('adminSaveFaculty', Object.assign({}, f, { active: !f.active }));
-        await reload();
-        show('setup');
-      }));
-      return el('tr', null, el('td', null, f.faculty_code), el('td', null, f.name_ms), el('td', null, f.name_en),
-        el('td', null, f.active ? 'shown' : 'hidden'), el('td', null, toggle));
     });
 
     // Settings
@@ -1357,11 +1365,6 @@
       el('div', { class: 'card' }, el('h3', null, 'Locations'),
         table(['ID', 'Name', 'Type', 'Active', ''], locRows),
         el('div', { class: 'row' }, field('New location name', newLocName), field('Type', locType)), el('div', { class: 'actions' }, addLoc)),
-      el('div', { class: 'card' }, el('h3', null, 'Faculties (students choose from these)'),
-        table(['Code', 'BM', 'English', 'Status', ''], facRows),
-        el('div', { class: 'row' }, field('Code', facCode), field('Name (BM)', facMs), field('Name (English)', facEn)),
-        el('p', { class: 'muted' }, 'Saving an existing code updates it.'),
-        el('div', { class: 'actions' }, addFac)),
       namelistCard(),
       el('div', { class: 'card' }, el('h3', null, 'Settings'), settingRows, el('div', { class: 'actions' }, saveSettings)),
       el('div', { class: 'card' }, el('h3', null, 'Print'),
@@ -1427,16 +1430,19 @@
   }
 
   // Student-facing text, BM first. Matches the student app (web/app.js) and its privacy notice.
-  const POSTER_STEPS = [
+  const posterSteps = () => [
     ['Imbas kod QR ini dengan kamera telefon anda.', 'Scan this QR code with your phone camera.'],
     ['Masukkan ID pelajar anda.', 'Enter your student ID.'],
-    ['Isi nama penuh dan fakulti anda, kemudian tandakan kotak persetujuan.', 'Fill in your full name and faculty, then tick the consent box.'],
-    ['Imbas kod bar atau ketik gambar setiap barang yang anda ambil.', 'Scan the barcode or tap the photo of each item you take.'],
+    state.data.settings.student_mode === 'ROSTER'
+      ? ['Semak nama anda dan tekan "Ya, ini saya". Tiada dalam senarai? Isi nama dan kolej anda sekali sahaja.', 'Check your name and press "Yes, that\'s me". Not on the list? Fill in your name and college once.']
+      : ['Isi nama penuh dan kolej anda, kemudian tandakan kotak persetujuan.', 'Fill in your full name and college, then tick the consent box.'],
+    ['Imbas kod bar atau ketik gambar setiap barang yang anda ambil (sehingga ' + (state.data.settings.max_items_per_visit || 5) + ' barang setiap lawatan).',
+      'Scan the barcode or tap the photo of each item you take (up to ' + (state.data.settings.max_items_per_visit || 5) + ' items per visit).'],
     ['Tekan Selesai.', 'Press Done.'],
   ];
   const POSTER_PRIVACY = [
-    'Privasi: Kami merekod ID pelajar, nama, fakulti dan barang yang anda ambil supaya rekod tepat dan Bahagian Hal Ehwal Pelajar (HEP) boleh menghubungi anda jika anda memerlukan bantuan lanjut. Rekod disimpan 1 tahun selepas lawatan terakhir anda dan hanya staf yang dibenarkan boleh melihatnya.',
-    'Privacy: We record your student ID, name, faculty and the items you take, to keep accurate records and so Student Affairs (HEP) can contact you if you need more help. Records are kept for 1 year after your last visit and only authorised staff can see them.',
+    'Privasi: Kami merekod ID pelajar, nama, kolej dan barang yang anda ambil supaya rekod tepat dan Bahagian Hal Ehwal Pelajar (HEP) boleh menghubungi anda jika anda memerlukan bantuan lanjut. Rekod disimpan 1 tahun selepas lawatan terakhir anda dan hanya staf yang dibenarkan boleh melihatnya.',
+    'Privacy: We record your student ID, name, college and the items you take, to keep accurate records and so Student Affairs (HEP) can contact you if you need more help. Records are kept for 1 year after your last visit and only authorised staff can see them.',
   ];
 
   function posterSheet(poster) {
@@ -1449,7 +1455,7 @@
         qrSvg(poster.modules, 'Kod QR / QR code: ' + poster.url),
         el('p', { class: 'poster-scan' }, el('b', null, 'Imbas untuk mula'), ' · Scan to start'),
         el('p', { class: 'poster-url' }, poster.url)),
-      el('ol', { class: 'poster-steps' }, POSTER_STEPS.map((step) => el('li', null, el('b', null, step[0]), el('span', { class: 'en' }, step[1])))),
+      el('ol', { class: 'poster-steps' }, posterSteps().map((step) => el('li', null, el('b', null, step[0]), el('span', { class: 'en' }, step[1])))),
       el('p', { class: 'poster-note' }, 'Tiada sambungan internet? Gunakan peranti pantri.', el('span', { class: 'en' }, 'No internet connection? Use the pantry device.')),
       el('footer', { class: 'poster-privacy' }, el('p', null, POSTER_PRIVACY[0]), el('p', null, POSTER_PRIVACY[1])));
   }

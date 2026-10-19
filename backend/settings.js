@@ -1,13 +1,14 @@
 // Settings tab values with their defaults. Admins change them on the staff Settings page.
 const DEFAULT_SETTINGS = {
-  // SELF: students give ID, name and faculty on every visit (docs/PLAN.md 5.2, option 1).
-  // ROSTER: the ID must be on the roster imported from the Assistant Registrar.
+  // SELF: students give ID, name and college on every visit (docs/PLAN.md 5.2, option 1).
+  // ROSTER: students on the imported namelist, or registered walk-ins, give only their ID (decisions 32 and 37).
   student_mode: 'SELF',
   student_id_pattern: '^\\d{10}$',
   retention_days: 365,
   large_qty_threshold: 10,
   default_threshold: 5,
   max_line_qty: 999,
+  max_items_per_visit: 5, // The student app's basket stops here; students start another visit for more.
   inactivity_seconds: 60,
   thanks_seconds: 5,
   public_submits_per_minute: 60,
@@ -31,6 +32,7 @@ const SETTING_LIMITS = {
   large_qty_threshold: [1, 999],
   default_threshold: [0, 100000],
   max_line_qty: [1, 100000],
+  max_items_per_visit: [1, 999],
   inactivity_seconds: [15, 600],
   thanks_seconds: [2, 60],
   public_submits_per_minute: [5, 1000],

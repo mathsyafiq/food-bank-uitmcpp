@@ -17,13 +17,15 @@
     <script src="core/gtin.js"></script>
     <script src="core/student-id.js"></script>
     <script src="core/names.js"></script>
+    <script src="core/colleges.js"></script>
     <script src="core/queue.js"></script>
     <script type="module" src="app.js"></script>
   </head>
   <body>
+    <div id="progress" aria-hidden="true"></div>
     <div id="banner" role="status" hidden></div>
     <main id="app">
-      <p class="loading">Memuatkan… · Loading…</p>
+      <p class="loading"><span class="spinner" aria-hidden="true"></span>Memuatkan… · Loading…</p>
     </main>
     <noscript>
       <p>Sila hidupkan JavaScript. · Please turn on JavaScript.</p>

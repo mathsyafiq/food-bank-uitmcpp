@@ -48,20 +48,15 @@ function buildCatalog_(settings) {
   Db.read('Barcodes').forEach((b) => {
     if (active[String(b.item_id)]) barcodes[String(b.code)] = String(b.item_id);
   });
-  const faculties = Db.read('Faculties').filter((f) => truthy_(f.active)).map((f) => ({
-    code: String(f.faculty_code),
-    ms: String(f.name_ms),
-    en: String(f.name_en || f.name_ms),
-  }));
   return {
     items: items,
     barcodes: barcodes,
-    faculties: faculties,
     settings: {
       student_mode: settings.student_mode,
       student_id_pattern: settings.student_id_pattern,
       large_qty_threshold: settings.large_qty_threshold,
       max_line_qty: settings.max_line_qty,
+      max_items_per_visit: settings.max_items_per_visit,
       inactivity_seconds: settings.inactivity_seconds,
       thanks_seconds: settings.thanks_seconds,
     },

@@ -16,7 +16,6 @@ function seeded() {
     { item_id: 'NB-002', name: 'Cooking oil', category: 'Staples', unit: 'bottle', sort_order: 2, active: true, photo_version: '' },
   );
   t.Barcodes.push({ code: '09556001000017', item_id: 'NB-001' });
-  t.Faculties.push({ faculty_code: 'FSKM', name_ms: 'Fakulti Sains Komputer', name_en: 'Computer Science', active: true });
   t.Staff.push(
     { email: 'admin@uitm.edu.my', name: 'Admin', role: 'admin', receives_alerts: true, active: true },
     { email: 'staff@uitm.edu.my', name: 'Staff', role: 'staff', receives_alerts: false, active: true },
@@ -24,7 +23,7 @@ function seeded() {
   return app;
 }
 
-const student = (extra) => Object.assign({ id: '2023123456', name: 'Ali bin Abu', faculty_code: 'FSKM', consent: true }, extra);
+const student = (extra) => Object.assign({ id: '2023123456', name: 'Ali bin Abu', college: 'Nilam', consent: true }, extra);
 const visit = (lines, extra) => Object.assign({
   visit_id: crypto.randomUUID(),
   occurred_at: new Date().toISOString(),
@@ -75,8 +74,19 @@ test('student details are required in self-registration mode', () => {
   assert.equal(code(visit([{ item_id: 'NB-001', qty: 1 }], { student: student({ consent: false }) })), 'CONSENT_REQUIRED');
   assert.equal(code(visit([{ item_id: 'NB-001', qty: 1 }], { student: student({ id: '12' }) })), 'STUDENT_ID_INVALID');
   assert.equal(code(visit([{ item_id: 'NB-001', qty: 1 }], { student: student({ name: ' ' }) })), 'NAME_REQUIRED');
-  assert.equal(code(visit([{ item_id: 'NB-001', qty: 1 }], { student: student({ faculty_code: 'NOPE' }) })), 'FACULTY_REQUIRED');
+  assert.equal(code(visit([{ item_id: 'NB-001', qty: 1 }], { student: student({ college: 'Mutiara' }) })), 'COLLEGE_REQUIRED');
+  assert.equal(code(visit([{ item_id: 'NB-001', qty: 1 }], { student: student({ college: '' }) })), 'COLLEGE_REQUIRED');
   assert.equal(app.db.tables.Visits.length, 0);
+});
+
+test('the college is stored as one of the list, and a visit queued by an older app (faculty) is still accepted', () => {
+  const app = seeded();
+  assert.equal(submit(app, visit([{ item_id: 'NB-001', qty: 1 }], { student: student({ college: 'kolej kediaman kristal-a' }) })).data.status, 'saved');
+  assert.equal(app.db.tables.Students[0].college, 'Kristal A');
+  const old = student({ id: '2023000001', faculty_code: 'FSKM' });
+  delete old.college;
+  assert.equal(submit(app, visit([{ item_id: 'NB-001', qty: 1 }], { student: old })).data.status, 'saved');
+  assert.equal(app.db.tables.Students[1].college, '');
 });
 
 test('a name that looks like a formula is stored as text', () => {
@@ -256,8 +266,9 @@ test('an admin can look up a student and export the list for HEP, and it is audi
   assert.equal(found.student.name, 'Ali bin Abu');
   assert.equal(found.visits[0].lines, 'Rice 1kg × 2');
   const csv = app.fn('adminStudentsCsv')();
-  assert.match(csv.csv, /^student_id,name,program,faculty,on_namelist,/);
-  assert.match(csv.csv, /2023123456,Ali bin Abu,,Fakulti Sains Komputer,no,/);
+  assert.match(csv.csv, /^student_id,name,college,on_namelist,/);
+  assert.match(csv.csv, /2023123456,Ali bin Abu,Nilam,no,/);
+  assert.equal(found.student.college, 'Nilam');
   assert.deepEqual(app.db.tables.AuditLog.map((a) => a.action), ['student_lookup', 'students_export']);
 });
 

@@ -1,7 +1,7 @@
 // Service worker: keeps the app shell available offline (CLAUDE.md section 9).
 // API calls are cross-site POSTs and always go to the network; the app keeps its own data in IndexedDB.
 // Bump VERSION with every release: a new version caches a complete, matching set of files.
-const VERSION = 'foodbank-0.3.0';
+const VERSION = 'foodbank-0.4.0';
 const SHELL = [
   './',
   'index.html',
@@ -14,6 +14,7 @@ const SHELL = [
   'core/gtin.js',
   'core/student-id.js',
   'core/names.js',
+  'core/colleges.js',
   'core/queue.js',
   'manifest.webmanifest',
   'icons/icon.svg',

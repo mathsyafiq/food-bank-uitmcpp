@@ -23,10 +23,6 @@ t.Locations.push(
   t.Items.push({ item_id: 'NB-' + String(i + 1).padStart(3, '0'), name, category: i < 7 ? 'Makanan' : 'Kebersihan', unit: '', sort_order: i + 1, active: true, photo_version: '' });
 });
 t.Barcodes.push({ code: '04006381333931', item_id: 'NB-001' });
-t.Faculties.push(
-  { faculty_code: 'DEMO1', name_ms: 'Fakulti Demo Satu', name_en: 'Demo Faculty One', active: true },
-  { faculty_code: 'OTHER', name_ms: 'Lain-lain', name_en: 'Other', active: true },
-);
 t.Staff.push({ email: STAFF_EMAIL, name: 'Demo admin', role: 'admin', receives_alerts: true, active: true });
 t.Settings.push({ key: 'pwa_url', value: 'http://localhost:' + PORT + '/?p=P1' });
 // A made-up namelist for trying the import: staff Setup > Student namelist, paste the link printed below.
@@ -37,10 +33,10 @@ app.books[DEMO_NAMELIST] = {
     Sheet1: [
       ['SENARAI NAMA RESIDEN KOLEJ (DEMO)', '', '', '', ''],
       ['', '', '', '', ''],
-      ['BIL', 'NO. PELAJAR', 'NAMA PELAJAR', 'NO. KP', 'PROGRAM'],
-      ['1', '2024000001', 'AHMAD FAIZ BIN RAHMAN', '000000-00-0001', 'CS230'],
-      ['2', '2024000002', 'NUR AINA BINTI ISMAIL', '000000-00-0002', 'AS120'],
-      ['3', '2024000003', 'LIM WEI JIE', '000000-00-0003', 'BA232'],
+      ['BIL', 'NO. PELAJAR', 'NAMA PELAJAR', 'NO. KP', 'PROGRAM', 'KOLEJ'],
+      ['1', '2024000001', 'AHMAD FAIZ BIN RAHMAN', '000000-00-0001', 'CS230', 'KOLEJ KEDIAMAN NILAM'],
+      ['2', '2024000002', 'NUR AINA BINTI ISMAIL', '000000-00-0002', 'AS120', 'KRISTAL-A'],
+      ['3', '2024000003', 'LIM WEI JIE', '000000-00-0003', 'BA232', 'ZAMRUD'],
     ],
   },
 };
@@ -82,7 +78,7 @@ console.log('Demo namelist link: https://docs.google.com/spreadsheets/d/' + DEMO
       app.fn('doPost')({ postData: { contents: JSON.stringify({
         action: 'submitVisit', pantry_id: random(3) ? 'P1' : 'P2',
         payload: { visit_id: require('crypto').randomUUID(), occurred_at: new Date().toISOString(), lines,
-          student: { id, name: 'Pelajar Demo ' + id.slice(-2), faculty_code: 'DEMO1', consent: true } },
+          student: { id, name: 'Pelajar Demo ' + id.slice(-2), college: 'Intan', consent: true } },
       }) } });
       restamp(before, new Date(start.getTime() + d * DAY + (9 + v) * 60 * 60 * 1000));
     }

@@ -64,9 +64,6 @@ function seedDefaults_(owner) {
       { location_id: 'P1', name: 'Pantri 1', type: 'PANTRY', active: true },
     ]);
   }
-  if (!Db.read('Faculties').length) {
-    Db.append('Faculties', [{ faculty_code: 'OTHER', name_ms: 'Lain-lain', name_en: 'Other', active: true }]);
-  }
   const admins = Db.read('Staff').filter((s) => truthy_(s.active) && String(s.role).toLowerCase() === 'admin');
   if (!admins.length) {
     Db.append('Staff', [{ email: owner, name: '', role: 'admin', receives_alerts: true, active: true }]);

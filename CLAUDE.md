@@ -30,7 +30,7 @@ Current scale:
 - **Database:** Google Sheets, tabs in section 6. No formulas on large tabs. The script computes everything.
 - **Frontend:** Progressive Web App in plain JavaScript (ES modules, no build step), with a service worker and IndexedDB for offline use. Hosted on GitHub Pages from a public repo **(to confirm)**. All libraries are copied into the repo: no CDNs, no analytics, no third-party requests.
 - **Scanner:**
-  - Pantry laptop: USB barcode scanner acting as a keyboard (types the code and presses Enter).
+  - Pantry laptop: USB barcode scanner acting as a keyboard (types the code and presses Enter) into a scan box that keeps the focus. A student card's QR code holds a link; only the student ID in it is kept (decision 39).
   - Phones: camera scanning. Use the browser's `BarcodeDetector` where available (Android Chrome) and a bundled ZXing build where not (iPhone Safari).
 - **Email:** Apps Script `MailApp`.
 - **Dev tooling:** `clasp` to push Apps Script code from the repo, `node --test` for unit tests, `fake-indexeddb` for queue tests.
@@ -48,9 +48,9 @@ Pantry devices (laptop and pantry phones) are set up once by staff, using a devi
 - **No sign-in.** Students never log in with Google or any account.
 - Identify by typing their student ID. The RHB mySiswa card likely has no barcode, so typing is the main path; scanning works if a card has one.
 - Validation depends on the roster (section 7):
-  - **Namelist imported** (the college namelist, a Google Sheet imported on the staff Setup page): the student keys in only their ID and confirms the name and programme shown. IDs not on the namelist give their name and faculty instead (decisions 32 to 35).
-  - **No roster:** the student gives their student ID, name, and faculty (chosen from a list), and consents. Whether this is asked once or on every visit is decided in the plan (section 7).
-- No per-student quantity limit and no visit limit.
+  - **Namelist imported** (the college namelist, a Google Sheet imported on the staff Setup page): the student keys in only their ID and confirms the name and college shown. An ID not on the namelist is a non-resident (NR) student: a pop-up asks them to register as non-resident in SIMS (in a new window), then they give their name and college once and are recognised by ID afterwards (decisions 32 to 35 and 37).
+  - **No roster:** the student gives their student ID, name, and college (chosen from a list), and consents. Whether this is asked once or on every visit is decided in the plan (section 7).
+- Up to 5 items per visit (setting `max_items_per_visit`); students who need more start another visit. No visit limit (decision 40).
 
 ### Staff
 - Sign in with UiTM Google Workspace accounts.
@@ -78,7 +78,7 @@ Constraint: a page on GitHub Pages can only call an Apps Script web app deployed
 4. Student adds items to a basket in one of two ways:
    - **Scan:** scan a barcode. Look up the item and add 1 to the basket. Scanning again adds 1 more.
    - **Tap:** choose from a grid of item photos and names. Covers items without barcodes.
-5. Basket shows each line with name and quantity, with +/- controls and remove.
+5. Basket shows each line with name and quantity, with +/- controls and remove. It holds up to 5 items in total; a full basket says so and suggests a new visit.
 6. If any single line is 10 or more, show a visible notice and flag the visit for staff review. Do not block.
 7. Never block because stock shows zero or less. Stock may go negative.
 8. Student confirms. The device sends the whole visit as one request with a `visit_id` (UUID). The server writes one OUT row per line, all or nothing.
@@ -139,8 +139,8 @@ Use separate tabs. Never overwrite history. ID and barcode columns are plain-tex
 - **Stock:** item_id, location_id, on_hand, updated_at. A cache, updated on every write.
 - **DailySummary:** date, location_id, item_id, type, total_qty, visit_count. Built nightly. Reports over long date ranges read this instead of the ledger.
 - **ArchiveTotals:** item_id, location_id, archived_sum, archived_through
-- **Students:** student_key, source (ROSTER or SELF), name and faculty_code (self-registration only), consent_at, last_visit_at. No free-text notes.
-- **Faculties:** faculty_code, name_ms, name_en, active. Feeds the faculty drop-down.
+- **Students:** student_key, student_id, name, college, source (ROSTER or SELF), consent_at, first_visit_at, last_visit_at, visit_count. No free-text notes.
+- **Colleges:** a fixed list in `core/colleges.js`: Nilam, Zamrud, Kristal A, Kristal B, Baiduri, Delima, Intan, NR (non-resident). Feeds the college drop-down and is matched against the namelist's college column. Replaces the Faculties tab (decision 37).
 - **Staff:** email, role (admin or staff), receives_alerts, active
 - **Settings:** key, value. For example timezone `Asia/Kuala_Lumpur`, retention_days 365, large_qty_threshold 10, default_threshold.
 - **AlertLog:** date, location_id, item_id, alert_type
@@ -160,8 +160,8 @@ Rules:
 
 ### Roster
 - Requested from the Assistant Registrar. If provided, an admin imports the CSV through an admin-only function. Only `student_key` values are stored, and the admin deletes the CSV afterwards. Re-import each intake; it replaces the ROSTER entries.
-- If not provided, students self-register with their student ID, name, and faculty (from the Faculties list), and give consent. Nothing else is collected (no IC or phone number).
-- The name is kept only in the admin-only Students tab and never appears in transactions or emails. After an ID is entered, the student's name and programme are shown on every device, by the owner's decision (33): anyone who knows a student's ID can see them. Look-ups from students' own phones are limited per minute.
+- If not provided, students self-register with their student ID, name, and college (from the college list), and give consent. Nothing else is collected (no IC or phone number).
+- The name is kept only in the admin-only Students tab and never appears in transactions or emails. After an ID is entered, the student's name and college are shown on every device, by the owner's decision (33, 37): anyone who knows a student's ID can see them. Look-ups from students' own phones are limited per minute.
 - Self-registration cannot prove an ID is real. That is accepted, because there are no limits.
 
 ### Storing IDs
@@ -172,8 +172,9 @@ Rules:
 - On students' own phones, nothing about the student is kept after the visit ends.
 
 ### The ID check must not reveal who uses the food bank
-- With the namelist, entering an ID shows that student's name and programme (accepted by the owner, decision 33).
-- With self-registration, "already registered" means "has used the food bank", which is sensitive. The check must not let someone type a friend's ID and find out whether they have visited. Options and a recommendation are in `docs/PLAN.md` §5.2 **(open)**.
+- With the namelist, entering an ID shows that student's name and college (accepted by the owner, decision 33).
+- A walk-in (not on the namelist) is recognised by ID after their first visit, so typing their ID shows that they have used the food bank. The owner accepted this on 2026-10-19 (decision 37); look-ups from students' own phones are limited per minute.
+- In SELF mode (no namelist), nothing is looked up and details are asked every visit, so "already registered" is never revealed (`docs/PLAN.md` §5.2).
 
 ### Retention
 - Visit-level student data is kept for 1 year. A nightly job blanks `student_key` on OUT rows older than 365 days. The rows stay, so stock totals and the audit trail are unaffected.
@@ -246,6 +247,6 @@ Business logic (stock math, GTIN rules, ID format, HMAC, idempotency, retention,
 
 ## 13. Open Questions
 
-Answered on 2026-10-18 (see `docs/DECISIONS.md`): who uses phones, Google Workspace, roster source, visit volume (per pantry), pantry device, negative stock, central store, retention period, staff authentication (option B), self-registration details (student ID, name, faculty).
+Answered on 2026-10-18 (see `docs/DECISIONS.md`): who uses phones, Google Workspace, roster source, visit volume (per pantry), pantry device, negative stock, central store, retention period, staff authentication (option B), self-registration details (student ID, name, faculty; changed to college on 2026-10-19, decision 37).
 
 Still open: the list lives in `docs/PLAN.md` §9, so there is only one copy to keep current.

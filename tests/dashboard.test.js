@@ -17,7 +17,6 @@ function seeded() {
     { item_id: 'NB-001', name: 'Rice', active: true },
     { item_id: 'NB-002', name: 'Oil', active: true },
   );
-  t.Faculties.push({ faculty_code: 'FSKM', name_ms: 'FSKM', active: true });
   t.Staff.push({ email: 'staff@uitm.edu.my', role: 'staff', active: true });
   return app;
 }
@@ -26,7 +25,7 @@ const day = (app, date) => app.fn('formatDay_')(date);
 const post = (app, body) => JSON.parse(app.fn('doPost')({ postData: { contents: JSON.stringify(body) } }).text);
 const visitFor = (id, lines) => ({
   visit_id: crypto.randomUUID(), occurred_at: new Date().toISOString(),
-  student: { id, name: 'Student ' + id, faculty_code: 'FSKM', consent: true }, lines,
+  student: { id, name: 'Student ' + id, college: 'Nilam', consent: true }, lines,
 });
 
 test('the dashboard totals visits, students, items given out and received, and nets out voids', () => {

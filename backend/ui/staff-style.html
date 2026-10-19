@@ -197,9 +197,40 @@
   #toast.show { opacity: 1; transform: none; transition-duration: 220ms; transition-timing-function: var(--ease-out); }
   #toast.error { background: #b42318; }
 
+  /* ---------- Waiting on the server (docs/DECISIONS.md 38) ----------
+     The pressed button keeps its size: its label blurs out and a spinner scales in (150 ms ease-out). A thin bar
+     runs along the top while any call is out, appearing after 120 ms so quick answers never flash it. Both move
+     at a constant, quick speed (linear): a fast spinner makes the wait feel shorter. */
+  #progress {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 60; height: 3px; overflow: hidden; pointer-events: none;
+    opacity: 0; transition: opacity 200ms ease;
+  }
+  #progress::before {
+    content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: 0 3px 3px 0;
+    background: var(--brand); transform: translateX(-100%);
+  }
+  .waiting #progress { opacity: 1; transition-delay: 120ms; }
+  .waiting #progress::before { animation: progress-slide 1s linear infinite; }
+  @keyframes progress-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+  .btn-label { display: inline-flex; align-items: center; gap: inherit; transition: opacity 150ms ease, filter 150ms ease; }
+  .btn-spinner {
+    position: absolute; top: 50%; left: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+    border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; pointer-events: none;
+    opacity: 0; transform: scale(0.8); transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
+  }
+  button.is-busy { position: relative; pointer-events: none; cursor: progress; }
+  .is-busy .btn-label { opacity: 0; filter: blur(2px); }
+  .is-busy .btn-spinner { opacity: 1; transform: scale(1); animation: spin 650ms linear infinite; }
+  @keyframes spin { to { rotate: 1turn; } }
+  @keyframes pulse { to { opacity: 0.35; } }
+
   @media (prefers-reduced-motion: reduce) {
     #toast, #toast.show { transform: none; }
     button.primary:active, button.secondary:active, button.danger:active, nav button:active { transform: none; }
+    /* Waiting stays visible, but pulses instead of spinning or sliding. */
+    .is-busy .btn-spinner { transform: none; animation: pulse 900ms ease-in-out infinite alternate; }
+    .btn-label { transition-property: opacity; filter: none !important; }
+    .waiting #progress::before { width: 100%; transform: none; animation: pulse 900ms ease-in-out infinite alternate; }
   }
 
   /* ---------- Reports dashboard: IBM Carbon Design System (docs/DECISIONS.md 36) ----------
@@ -325,7 +356,7 @@
 
   @media print {
     body { background: #fff; }
-    .bar, nav, #toast, .no-print { display: none !important; }
+    .bar, nav, #toast, #progress, .no-print { display: none !important; }
     main { max-width: none; padding: 0; }
     .sheets { overflow: visible; padding: 0; }
     /* The page margin replaces the padding. 1 mm short of the page so rounding never adds a blank page. */

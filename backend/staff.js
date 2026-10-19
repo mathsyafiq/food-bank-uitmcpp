@@ -29,6 +29,7 @@ function include_(file) {
 /** Everything the staff pages need on load. Admins also get settings and the staff list. */
 function staffBootstrap() {
   return staffCall_('staff', (me) => {
+    ensureSchema_();
     const settings = getSettings_();
     const data = {
       me: me,
@@ -56,9 +57,7 @@ function staffBootstrap() {
         item_id: String(t.item_id), location_id: String(t.location_id), threshold: t.threshold, reorder_qty: t.reorder_qty,
       })),
       stock: stockMap_(),
-      faculties: Db.read('Faculties').map((f) => ({
-        faculty_code: String(f.faculty_code), name_ms: String(f.name_ms), name_en: String(f.name_en), active: truthy_(f.active),
-      })),
+      colleges: Colleges.LIST.map((c) => c.code),
       unknown_barcodes: Db.read('UnknownBarcodes').map((u) => ({
         code: String(u.code), location_id: String(u.location_id), last_seen: u.last_seen, times_seen: Number(u.times_seen) || 0,
       })),

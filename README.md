@@ -16,9 +16,8 @@ Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [doc
 2. **Open the staff app** (link above) with your UiTM account.
 3. **Setup tab (admins):**
    - Rename the locations if needed. Setup creates `S1` Stor Pusat (Central Store) and `P1` Pantri 1. Add Pantri 2 when it opens.
-   - Add the faculties students choose from (code, BM name, English name). "Lain-lain / Other" is there to start.
    - Check the settings, especially **Student ID format** (default: 10 digits).
-   - **Student namelist:** paste the link of the namelist Google Sheet, press **Preview**, check the student ID, name and programme columns, then **Import and use the namelist**. Students then key in only their ID and see their name and programme; anyone not on the list types their details. Import again each semester. Only ID, name and programme are kept (never IC numbers).
+   - **Student namelist:** paste the link of the namelist Google Sheet, press **Preview**, check the student ID, name and college columns, then **Import and use the namelist**. Students then key in only their ID and see their name and college. Anyone not on the list is non-resident (NR): they are asked to register in SIMS, give their name and college once, and are recognised by ID from then on. Import again each semester. Only ID, name and college are kept (never IC numbers). The colleges students choose from are listed on the Setup page (Nilam, Zamrud, Kristal A, Kristal B, Baiduri, Delima, Intan, NR).
 4. **Staff tab (admins):** add each staff member's UiTM email. Tick "Receives stock alert emails" for anyone who should get alerts.
 5. **Items tab:** add each item with a photo, link its barcodes (scan them with the USB scanner), and set low-stock thresholds per location. Items without a barcode can be tapped on screen, or labelled with their internal code (NB-001 and so on): **Print barcode labels** on the Items tab prints a sheet of 24 labels per A4 page.
 6. **Receive tab:** record the first delivery into the Central Store, then use **Transfer** to move stock to Pantri 1.
@@ -27,14 +26,14 @@ Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [doc
 
 ## Everyday use
 
-- **Students:** enter their student ID. If the namelist is imported they confirm their name; otherwise, or if their ID is not on it, they give their name and faculty and tick consent. Then they scan or tap items and press Done. A line of 10 or more is allowed but flagged for staff.
+- **Students:** enter or scan their student ID (the QR code on the student card works too). If the namelist is imported they confirm their name and college; if their ID is not on it, they are asked to register as non-resident in SIMS and give their name and college once. Then they scan or tap up to 5 items and press Done; for more, they start another visit. On the pantry laptop the USB scanner types into the scan box, which keeps the focus.
 - **Staff:** Receive (deliveries into the store), Transfer (store to pantry), Count (stock count; sync pantry devices first), Adjust (damaged, expired, correction), Void visit (undo a mistaken visit), Reports (a dashboard of visits, items and low stock that can be printed or saved as PDF, plus tables with CSV export).
 - **Emails:** hourly low-stock and out-of-stock alerts per location (each at most once a day), plus a nightly digest of large-quantity visits. Emails never contain student data.
 - **Nightly at 2am:** stock check (emails admins if the Stock tab and the ledger disagree), PDPA retention (student links on visits older than a year are removed, and students not seen for a year are deleted), large-quantity digest.
 
 ## Privacy (PDPA)
 
-- Student IDs, names and faculties are kept only in the Students tab, which only the owner and admins can open. Staff use the staff app and never need the spreadsheet.
+- Student IDs, names and colleges are kept only in the Students tab, which only the owner and admins can open. Staff use the staff app and never need the spreadsheet.
 - Visits and the stock ledger refer to students only by a keyed hash. The key lives in the script's properties, never in the Sheet, the app or this repo.
 - Admins can export the student list for Student Affairs (HEP). Every look-up and export is logged in the AuditLog tab.
 - Never commit rosters, exports or real student IDs to this repo (it is public).
