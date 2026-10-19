@@ -4,7 +4,7 @@ Inventory and self-service checkout for the UiTM food bank. Students record what
 
 | Part | Where | Who |
 |---|---|---|
-| Student app (PWA) | https://mathsyafiq.github.io/food-bank-urhp/ | Students, on the pantry laptop, pantry phones or their own phones |
+| Student app (PWA) | https://mathsyafiq.github.io/food-bank-uitmcpp/ | Students, on the pantry laptop, pantry phones or their own phones |
 | Staff app | [Staff web app](https://script.google.com/macros/s/AKfycbyDrHlZgISTgVhhI35MW-KOwnAXkks10Wj-9AZJ77ahIYO5EViH4ahiR2IYZ6nBTcsj/exec) (UiTM sign-in) | People listed in the Staff tab |
 | Database | Google Sheet "Food Bank URHP – Database" in the Drive folder "Food Bank URHP" | Owner and admins only |
 
@@ -22,7 +22,7 @@ Design and decisions: [CLAUDE.md](CLAUDE.md), [docs/PLAN.md](docs/PLAN.md), [doc
 5. **Items tab:** add each item with a photo, link its barcodes (scan them with the USB scanner), and set low-stock thresholds per location. Items without a barcode can be tapped on screen, or labelled with their internal code (NB-001 and so on): **Print barcode labels** on the Items tab prints a sheet of 24 labels per A4 page.
 6. **Receive tab:** record the first delivery into the Central Store, then use **Transfer** to move stock to Pantri 1.
 7. **Pantry laptop:** open the student app link, scroll down, tap "Pantry device setup", and enter the code from the staff app's **Devices** tab. Do the same for any pantry-owned phone.
-8. **QR posters (admins):** Setup > Print > **QR posters** prints one A4 poster per active pantry for students' own phones. Each code links to the student app for that pantry, for example `https://mathsyafiq.github.io/food-bank-urhp/?p=P1`. When printing posters or labels, choose A4, scale 100% (Actual size), and turn off headers and footers.
+8. **QR posters (admins):** Setup > Print > **QR posters** prints one A4 poster per active pantry for students' own phones. Each code links to the student app for that pantry, for example `https://mathsyafiq.github.io/food-bank-uitmcpp/?p=P1`. When printing posters or labels, choose A4, scale 100% (Actual size), and turn off headers and footers.
 
 ## Everyday use
 

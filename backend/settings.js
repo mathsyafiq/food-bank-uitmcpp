@@ -65,6 +65,9 @@ function getSettings_() {
     if (value === '' || !validSetting_(key, value)) return;
     settings[key] = typeof DEFAULT_SETTINGS[key] === 'number' ? Number(value) : value;
   });
+  if (typeof OLD_PWA_URLS === 'object' && OLD_PWA_URLS.some((old) => settings.pwa_url.indexOf(old) === 0)) {
+    settings.pwa_url = '';
+  }
   if (typeof APP_URLS === 'object') {
     settings.pwa_url = settings.pwa_url || APP_URLS.pwa;
     settings.staff_url = settings.staff_url || APP_URLS.staff;

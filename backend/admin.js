@@ -131,10 +131,12 @@ function adminSaveSettings(values) {
   return staffCall_('admin', (me) => {
     values = values || {};
     const changes = {};
+    const defaults = typeof APP_URLS === 'object' ? { pwa_url: APP_URLS.pwa, staff_url: APP_URLS.staff } : {};
     Object.keys(values).forEach((key) => {
       const value = String(values[key] == null ? '' : values[key]).trim();
       if (!validSetting_(key, value)) throw new ApiError('SETTING_INVALID');
-      changes[key] = value;
+      // A link equal to the default is stored blank, so it keeps following the default if the address changes.
+      changes[key] = defaults[key] && value === defaults[key] ? '' : value;
     });
     return Db.withLock(() => {
       const rows = Db.read('Settings');

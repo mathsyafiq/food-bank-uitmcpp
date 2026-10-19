@@ -48,10 +48,10 @@ function removeBlankDefaultTab_(book) {
 
 function seedDefaults_(owner) {
   const settings = Db.read('Settings').map((r) => String(r.key).trim());
-  const urls = typeof APP_URLS === 'object' ? APP_URLS : {};
+  // The two links start blank, so they follow APP_URLS in backend/config.js.
   const missing = Object.keys(DEFAULT_SETTINGS).filter((k) => settings.indexOf(k) < 0).map((k) => ({
     key: k,
-    value: String(k === 'pwa_url' ? urls.pwa || '' : k === 'staff_url' ? urls.staff || '' : DEFAULT_SETTINGS[k]),
+    value: String(DEFAULT_SETTINGS[k]),
   }));
   Db.append('Settings', missing);
 

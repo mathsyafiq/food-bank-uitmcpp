@@ -300,8 +300,8 @@ test('QR posters: one per active pantry, admins only, and each code reads back a
   app.user.email = 'admin@uitm.edu.my';
   const posters = app.fn('adminQrPosters')();
   assert.deepEqual(posters.map((p) => [p.location_id, p.name, p.url]), [
-    ['P1', 'Pantri 1', 'https://mathsyafiq.github.io/food-bank-urhp/?p=P1'],
-    ['P2', 'Pantri 2', 'https://mathsyafiq.github.io/food-bank-urhp/?p=P2'],
+    ['P1', 'Pantri 1', 'https://mathsyafiq.github.io/food-bank-uitmcpp/?p=P1'],
+    ['P2', 'Pantri 2', 'https://mathsyafiq.github.io/food-bank-uitmcpp/?p=P2'],
   ]);
   const modules = posters[0].modules.map((row) => row.split('').map((c) => c === '1'));
   assert.equal(readQr(modules).text, posters[0].url);
